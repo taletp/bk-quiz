@@ -908,121 +908,52 @@ Or add temporary logs before running.
    # This adds 5 seconds between each question
    # For 100 questions = ~500 seconds = 8+ minutes total
    # But guarantees no rate limits
-   ```
 
----
+### Q: How do I use Skip Mode to handle quota exhaustion?
 
-## 📊 Performance
+**A:** Skip Mode allows the tool to skip failed questions and continue processing. Use it when:
+- Your OpenAI quota has been exhausted
+- Your account has billing issues
+- You want to gather as many answers as possible
 
-### Typical Running Times
-
-| Operation | Time |
-|-----------|------|
-| Browser launch | 2-3 seconds |
-| Login wait | User dependent |
-| URL input | User dependent |
-| Per question (text) | 1-2 seconds |
-| Per question (image) | 2-5 seconds |
-| Page navigation | 1-2 seconds |
-
-**Total for 10-question quiz:** ~15-30 seconds
-
-### Memory Usage
-
-| Component | Memory |
-|-----------|--------|
-| Node.js/Bun | ~50MB |
-| Chromium browser | ~150-200MB |
-| API processing | ~10MB |
-| **Total** | **~250MB** |
-
----
-
-## 🔒 Security & Privacy
-
-### What is NOT stored:
-
-- ❌ Login credentials
-- ❌ Quiz answers
-- ❌ LMS session data
-- ❌ Your API key (only in .env, not shared)
-
-### What happens during a run:
-
-1. Your API key is used to call OpenAI
-2. Screenshots are sent to OpenAI API
-3. Answers are printed to your console
-4. Everything is discarded when the tool ends
-
-### Best Practices:
-
-1. **Keep .env safe** - Don't commit to git
-2. **Rotate API keys** - If compromised
-3. **Use personal API keys** - Not shared team keys
-4. **Monitor usage** - Check your OpenAI account
-5. **Run locally** - Not on shared computers
-
----
-
-## 📝 License
-
-MIT License - See LICENSE file for details
-
-**TL;DR:** Use this code freely, including commercial use. Just don't claim you wrote it.
-
----
-
-## 🤝 Contributing
-
-Found a bug? Have a suggestion?
-
-1. Test it thoroughly
-2. Describe the issue clearly
-3. Include steps to reproduce
-4. Submit a pull request or issue
-
----
-
-## ⚡ Acknowledgments
-
-- **[Playwright](https://playwright.dev)** - Browser automation
-- **[OpenAI](https://openai.com)** - GPT-4o API
-- **[Bun](https://bun.sh)** - Fast JavaScript runtime
-- **[HCMUT LMS](https://lms.hcmut.edu.vn)** - Target platform
-
----
-
-## 📬 Support
-
-### Getting Help
-
-1. **Read the FAQ** above first
-2. **Check Troubleshooting** section
-3. **Review console output** for error messages
-4. **Check OpenAI status** (https://status.openai.com/)
-5. **Test with simple quiz first**
-
-### Common Commands
-
+**Enable Skip Mode:**
 ```bash
-# View logs of last run
-tail -f bun.log
-
-# Check TypeScript for errors
-bunx tsc --noEmit
-
-# Run with verbose output
-DEBUG=* bun run start
-
-# Clean reinstall
-rm -rf node_modules bun.lock
-bun install
+# Run with skip mode enabled
+export SKIP_ON_RATE_LIMIT=true
+bun run start
 ```
 
----
+**What happens:**
+- Tool processes quiz questions normally
+- If a question fails due to rate limit or quota → Skipped (marked UNKNOWN)
+- Tool continues to next question
+- At end: Shows which questions were skipped
 
-**Last Updated:** January 2025  
-**Version:** 1.0.0  
-**Status:** ✅ Production Ready
+**Example:**
+```bash
+# Try with aggressive delays first
+export REQUEST_DELAY_MS=15000
+bun run start
 
-For the latest updates, check the [GitHub repository](https://github.com/yourusername/bk-quiz).
+# If still failing, add skip mode
+export REQUEST_DELAY_MS=15000 && export SKIP_ON_RATE_LIMIT=true
+bun run start
+```
+
+**Output example:**
+```
+⚠️ Q1: Rate limited (attempt 1/6). Waiting 3.0s before retry...
+⚠️ Q1: Rate limited (attempt 2/6). Waiting 9.0s before retry...
+⚠️ Q1: Skipped (quota exhausted)
+
+✅ Q2: B (high confidence)
+✅ Q3: A (high confidence)
+
+Quiz processing complete!
+   Questions answered: 8
+   Questions skipped: 1
+   Questions skipped (rate limited): Q1
+```
+
+See [SKIP_MODE_GUIDE.md](./SKIP_MODE_GUIDE.md) for comprehensive guide.
+
