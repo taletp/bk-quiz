@@ -88,15 +88,17 @@ Then:
 
 ## Groq Models Available
 
-The tool uses **Mixtral-8x7b** (Groq's fastest model):
+The tool uses **Llama-3.3-70b** (Groq's current recommended model):
 
-| Model | Speed | Quality | Tokens |
+| Model | Speed | Quality | Status |
 |-------|-------|---------|--------|
-| **mixtral-8x7b** | ⚡⚡⚡ | Good | 32k |
-| gemma-7b | ⚡⚡ | Fair | 8k |
-| llama2-70b | ⚡ | Better | 4k |
+| **llama-3.3-70b-versatile** | ⚡⚡ | Excellent | ✅ Current |
+| llama-3.1-8b-instant | ⚡⚡⚡ | Good | Available |
+| gpt-oss-120b | ⚡ | Very Good | Available |
 
-Mixtral is the best balance of speed + quality.
+Llama-3.3-70b is the best balance of speed and quality.
+
+**Note**: Mixtral-8x7b has been deprecated and is no longer available.
 
 ---
 
@@ -130,9 +132,18 @@ bun run start
 ### "Invalid GROQ_API_KEY"
 
 **Solution:**
-1. Verify key starts with `gsk_`
+1. Verify key starts with `gsk_` (standard) or `xai_` (xAI variant)
 2. Check .env file has no typos
 3. Get new key from https://console.groq.com/keys
+
+### "Model has been decommissioned"
+
+**Cause**: Mixtral model is no longer available
+
+**Solution:**
+- Update the tool to latest version (we fixed this)
+- The tool now uses llama-3.3-70b-versatile which is current
+- Run: `git pull` to get the latest version
 
 ### "Connection timeout"
 
