@@ -1,5 +1,5 @@
 import { chromium, Browser, Page } from 'playwright';
-import * as readline from 'node:readline';
+import { waitForEnter, printSuccess } from './utils.js';
 
 // Global browser reference for SIGINT handler
 let browserRef: Browser | null = null;
@@ -12,24 +12,6 @@ process.on('SIGINT', async () => {
   }
   process.exit(0);
 });
-
-/**
- * Waits for Enter keypress using Node.js readline
- * Prompts user with the given message and blocks until Enter is pressed
- */
-async function waitForEnter(prompt: string): Promise<void> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(prompt, () => {
-      rl.close();
-      resolve();
-    });
-  });
-}
 
 /**
  * Launches a visible Chromium browser, navigates to HCMUT LMS login page,
@@ -52,7 +34,8 @@ export async function launchBrowser(): Promise<{ browser: Browser; page: Page }>
   await page.goto('https://lms.hcmut.edu.vn/');
 
   // Display console message
-  console.log('Please login to LMS. Press Enter when done...');
+  printSuccess('Browser opened at LMS homepage');
+  console.log('👉 Please login manually, then press Enter when done.');
 
   // Wait for user to press Enter
   await waitForEnter('');

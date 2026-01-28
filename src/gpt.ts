@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import OpenAI from 'openai';
 import type { ScrapedQuestion } from './scraper.js';
+import { printWarning, printError, delay } from './utils.js';
+import { isValidApiKey } from './validation.js';
 
 // ============================================================================
 // Types & Interfaces
@@ -36,11 +38,23 @@ let questionsProcessed = 0;
 // ============================================================================
 
 export async function validateApiKey(): Promise<boolean> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  
+  // Check if key exists and has proper format
+  if (!apiKey || !isValidApiKey(apiKey)) {
+    printError(
+      'Invalid OPENAI_API_KEY format. ' +
+      'Expected: sk-xxxxx... (40+ characters)\n' +
+      'Check your .env file and ensure the key is correct.'
+    );
+    return false;
+  }
+  
   try {
-    await openai.models.list();  // Simple API call to verify key
+    await openai.models.list();
     return true;
   } catch (error) {
-    console.error("❌ Invalid OPENAI_API_KEY. Please check your .env file.");
+    printError('Failed to authenticate with OpenAI API. Check your API key and billing.');
     return false;
   }
 }
@@ -55,7 +69,7 @@ export async function analyzeQuestion(
 ): Promise<AnswerResult | null> {
   // Check 100-question cap
   if (questionsProcessed >= MAX_QUESTIONS_PER_RUN) {
-    console.warn(`⚠️ Reached ${MAX_QUESTIONS_PER_RUN} question limit. Stopping to prevent runaway costs.`);
+    printWarning(`Reached ${MAX_QUESTIONS_PER_RUN} question limit. Stopping to prevent runaway costs.`);
     return null;
   }
 
@@ -127,7 +141,7 @@ function parseResponse(
   questionNumber: number
 ): AnswerResult | null {
   if (!content.trim()) {
-    console.warn(`⚠️ Q${questionNumber}: Empty response from API`);
+    printWarning(`Q${questionNumber}: Empty response from API`);
     return createUnknownResult(question, questionNumber);
   }
 
@@ -154,7 +168,7 @@ function parseResponse(
   }
 
   // Could not parse answer
-  console.warn(`⚠️ Q${questionNumber}: Could not parse answer from response`);
+  printWarning(`Q${questionNumber}: Could not parse answer from response`);
   return createUnknownResult(question, questionNumber);
 }
 
@@ -168,7 +182,7 @@ function createResult(
   // Validate letter is within valid range
   const letterIndex = letter.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
   if (letterIndex < 0 || letterIndex >= question.options.length) {
-    console.warn(`⚠️ Q${questionNumber}: Letter ${letter} out of range (${question.options.length} options)`);
+    printWarning(`Q${questionNumber}: Letter ${letter} out of range (${question.options.length} options)`);
     return createUnknownResult(question, questionNumber);
   }
 
@@ -206,32 +220,32 @@ function handleError(
 
   // Check for specific error types
   if (err.status === 401 || err.code === "AuthenticationError") {
-    console.error("❌ Invalid API key. Check .env file.");
+    printError('Invalid API key. Check .env file and restart.');
     process.exit(1);
   }
 
   if (err.status === 429 || err.code === "RateLimitError") {
-    console.error("⚠️ Rate limited. Wait and retry.");
+    printError('Rate limited by OpenAI API. Wait and retry later.');
     process.exit(1);
   }
 
   if (err.code === "TimeoutError" || err.error?.type === "server_error") {
-    console.warn(`⚠️ Q${questionNumber}: Timeout, skipping`);
+    printWarning(`Q${questionNumber}: API timeout, skipping`);
     return createUnknownResult(question, questionNumber);
   }
 
   if (err.status && err.status >= 500) {
-    console.warn(`⚠️ Q${questionNumber}: API error, skipping`);
+    printWarning(`Q${questionNumber}: API server error, skipping`);
     return createUnknownResult(question, questionNumber);
   }
 
   if (err.code === "context_length_exceeded") {
-    console.warn(`⚠️ Q${questionNumber}: Question too long, skipping`);
+    printWarning(`Q${questionNumber}: Question too long for API, skipping`);
     return createUnknownResult(question, questionNumber);
   }
 
   // Generic API error
-  console.warn(`⚠️ Q${questionNumber}: API error - ${(err.message || 'unknown error')}`);
+  printWarning(`Q${questionNumber}: API error - ${(err.message || 'unknown error')}`);
   return createUnknownResult(question, questionNumber);
 }
 

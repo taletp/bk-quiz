@@ -1,4 +1,5 @@
 import type { Page } from 'playwright';
+import { printWarning, delay } from './utils.js';
 
 /**
  * Represents a single answer option for a question.
@@ -68,8 +69,16 @@ async function captureQuestionScreenshot(
  * Scrapes all single-choice MCQ questions from the current page.
  * Skips multi-select questions (checkboxes) and questions with <2 options.
  * Returns structured question data with stable CSS selectors.
+ * 
+ * @param page - Playwright page object
+ * @returns Array of scraped questions (guaranteed to be an array)
+ * @throws Error if page is not available
  */
 export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
+  // Ensure page is available before proceeding
+  if (!page) {
+    throw new Error('Page is not available');
+  }
   // Extract raw question data from the DOM
   const rawQuestions = await page.evaluate(() => {
     // Helper: Extract question ID from container
@@ -173,30 +182,34 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
       continue;
     }
 
-    // Build options with validated selectors
-    const options: Option[] = [];
-    for (let i = 0; i < raw.optionTexts.length; i++) {
-      const label = String.fromCharCode(65 + i); // 0→A, 1→B, 2→C, etc.
-      
-      // Try primary selector first
-      let selector = buildOptionSelector(raw.questionId, i);
-      if (!await validateSelector(page, selector)) {
-        // Try fallback selector
-        selector = buildFallbackSelector(raw.questionId, i);
-        if (!await validateSelector(page, selector)) {
-          console.warn(
-            `⚠️ Q${raw.index + 1}, Option ${label}: Could not build stable selector`
-          );
-          selector = ''; // Mark as invalid
-        }
-      }
+     // Build options with validated selectors
+     const options: Option[] = [];
+     for (let i = 0; i < raw.optionTexts.length; i++) {
+       const label = String.fromCharCode(65 + i); // 0→A, 1→B, 2→C, etc.
+       
+       // Try primary selector first
+       let selector = buildOptionSelector(raw.questionId, i);
+       if (!await validateSelector(page, selector)) {
+         // Try fallback selector
+         selector = buildFallbackSelector(raw.questionId, i);
+         if (!await validateSelector(page, selector)) {
+           printWarning(`Q${raw.index + 1}, Option ${label}: Could not build stable selector`);
+           selector = ''; // Mark as invalid
+         }
+       }
+       
+       // Validate selector before adding option
+       if (!selector) {
+         printWarning(`Q${raw.index + 1}: Could not build selector for option ${label}`);
+         continue;
+       }
 
-      options.push({
-        label,
-        text: raw.optionTexts[i],
-        selector
-      });
-    }
+       options.push({
+         label,
+         text: raw.optionTexts[i],
+         selector
+       });
+     }
 
     // Capture screenshot if question contains images
     let imageBase64: string | undefined;
@@ -204,9 +217,7 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
       try {
         imageBase64 = await captureQuestionScreenshot(page, raw.questionId);
       } catch (error) {
-        console.warn(
-          `⚠️ Q${raw.index + 1}: Failed to capture screenshot - ${error}`
-        );
+        printWarning(`Q${raw.index + 1}: Failed to capture screenshot - ${error}`);
       }
     }
 

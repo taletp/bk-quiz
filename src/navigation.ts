@@ -1,11 +1,14 @@
 import { Page } from 'playwright';
 import * as readline from 'node:readline';
+import { printWarning, printError } from './utils.js';
+import { isValidQuizUrl, sanitizeInput } from './validation.js';
 
 /**
  * Waits for user to input a quiz URL via readline
  * Uses same pattern as browser.ts for consistency
  *
  * @returns The quiz URL entered by the user
+ * @throws Error if URL format is invalid
  */
 export async function promptForQuizUrl(): Promise<string> {
   const rl = readline.createInterface({
@@ -13,23 +16,33 @@ export async function promptForQuizUrl(): Promise<string> {
     output: process.stdout,
   });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     rl.question('📋 Enter quiz URL: ', (answer) => {
       rl.close();
-      resolve(answer.trim());
+      
+      const sanitized = sanitizeInput(answer);
+      
+      if (!isValidQuizUrl(sanitized)) {
+        reject(new Error(
+          'Invalid URL. Expected format: /mod/quiz/attempt.php?attempt=123\n' +
+          'Please navigate to an active quiz attempt and try again.'
+        ));
+      }
+      
+      resolve(sanitized);
     });
   });
 }
 
 /**
  * Validates that a URL is a Moodle quiz attempt page
- * Checks for the required quiz attempt pattern: /mod/quiz/attempt.php?attempt=
+ * Uses the validation module's isValidQuizUrl function for consistency
  *
  * @param url - The URL to validate
  * @returns true if URL matches quiz attempt pattern, false otherwise
  */
 export function isQuizAttemptPage(url: string): boolean {
-  return url.includes('/mod/quiz/attempt.php') && url.includes('attempt=');
+  return isValidQuizUrl(url);
 }
 
 /**
@@ -92,7 +105,7 @@ export async function navigateToNextPage(page: Page): Promise<boolean> {
   try {
     await page.waitForURL((url) => url.href !== currentUrl, { timeout: 10000 });
   } catch (error) {
-    console.warn('⚠️ URL did not change after clicking Next');
+    printWarning('URL did not change after clicking Next');
     return false;
   }
 
@@ -100,7 +113,7 @@ export async function navigateToNextPage(page: Page): Promise<boolean> {
   try {
     await page.waitForSelector('.que', { timeout: 10000 });
   } catch (error) {
-    console.warn('⚠️ Questions did not load after Next click');
+    printWarning('Questions did not load after Next click');
     return false;
   }
 
