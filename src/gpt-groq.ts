@@ -35,10 +35,10 @@ let questionsProcessed = 0;
 
 // Rate limiting configuration
 const RATE_LIMIT_CONFIG = {
-  baseDelay: 500,            // 500ms between requests (Groq is very fast)
-  maxRetries: 3,             // Retry up to 3 times on rate limit
-  backoffMultiplier: 2,      // Double wait time on each retry
-  maxBackoffDelay: 60000,    // Cap at 60 seconds
+  baseDelay: 2000,           // 2 seconds between requests (Groq free tier is 30 RPM = 2s/request)
+  maxRetries: 5,             // Retry up to 5 times on rate limit
+  backoffMultiplier: 1.5,    // Increase wait time by 1.5x on each retry
+  maxBackoffDelay: 120000,   // Cap at 120 seconds
 };
 
 // Track rate limit state
@@ -58,6 +58,7 @@ interface ErrorAnalysis {
   isQuotaExhausted: boolean;
   isAuthError: boolean;
   message: string;
+  retryAfterMs?: number; // Optional: wait time suggested by API
 }
 
 interface ApiError {
@@ -68,6 +69,9 @@ interface ApiError {
     message?: string;
     type?: string;
   };
+  headers?: {
+    'retry-after'?: string;
+  };
 }
 
 function analyzeErrorType(error: unknown): ErrorAnalysis {
@@ -77,25 +81,32 @@ function analyzeErrorType(error: unknown): ErrorAnalysis {
   const message = err.message ?? err.error?.message ?? '';
   const messageLower = message.toLowerCase();
 
-  // Check for quota exhaustion: 429 with quota-related message
+  // Check for quota exhaustion: must have "quota" or "billing" (not just "rate limit reached")
   const isQuotaExhausted = status === 429 && (
     messageLower.includes('quota') ||
     messageLower.includes('billing') ||
-    messageLower.includes('exceeded') ||
     messageLower.includes('insufficient_quota')
-  );
+  ) && !messageLower.includes('rate limit reached');
 
-  // Check for rate limit: 429 or RateLimitError code (but not quota)
+  // Check for rate limit: 429 with RPM/TPM limit or RateLimitError code (but not quota)
   const isRateLimit = !isQuotaExhausted && (status === 429 || code === 'RateLimitError');
 
   // Check for auth error: 401 or AuthenticationError code
   const isAuthError = status === 401 || code === 'AuthenticationError';
 
+  // Try to extract wait time from error message
+  let retryAfterMs: number | undefined;
+  const retryMatch = message.match(/try again in (\d+(?:\.\d+)?)\s*s/i);
+  if (retryMatch) {
+    retryAfterMs = Math.ceil(parseFloat(retryMatch[1]) * 1000);
+  }
+
   return {
     isRateLimit,
     isQuotaExhausted,
     isAuthError,
-    message
+    message,
+    retryAfterMs
   };
 }
 
@@ -212,52 +223,72 @@ EXPLANATION: Paris is the capital of France.`;
         ...result,
         questionIndex: questionNumber,
       };
-    } catch (error) {
-      lastError = analyzeErrorType(error);
-      const isLastAttempt = attempt === RATE_LIMIT_CONFIG.maxRetries + 1;
+      } catch (error) {
+        lastError = analyzeErrorType(error);
+        const isLastAttempt = attempt === RATE_LIMIT_CONFIG.maxRetries + 1;
 
-      if (lastError.isRateLimit && !isLastAttempt) {
-        // Exponential backoff
-        currentBackoffDelay = Math.min(
-          currentBackoffDelay * RATE_LIMIT_CONFIG.backoffMultiplier,
-          RATE_LIMIT_CONFIG.maxBackoffDelay
-        );
-        const waitSeconds = (currentBackoffDelay / 1000).toFixed(1);
-        printWarning(`⚠️ Q${questionNumber}: Rate limited (attempt ${attempt}/${RATE_LIMIT_CONFIG.maxRetries + 1}). Waiting ${waitSeconds}s before retry...`);
-        await delay(currentBackoffDelay);
-      } else if (lastError.isQuotaExhausted) {
-        printWarning(`⚠️ Q${questionNumber}: Quota exhausted`);
-        if (skipOnRateLimit) {
-          failedQuestions.push(questionNumber);
-          return {
-            questionIndex: questionNumber,
-            suggestedAnswer: 'UNKNOWN',
-            explanation: 'Skipped (quota exhausted)',
-            confidence: 'low',
-            selector: '',
-          };
-        } else {
+        if (lastError.isRateLimit) {
+          if (!isLastAttempt) {
+            // Use wait time from error message if available, otherwise use exponential backoff
+            const waitTime = lastError.retryAfterMs || 
+              Math.min(
+                currentBackoffDelay * RATE_LIMIT_CONFIG.backoffMultiplier,
+                RATE_LIMIT_CONFIG.maxBackoffDelay
+              );
+            
+            currentBackoffDelay = waitTime;
+            const waitSeconds = (waitTime / 1000).toFixed(1);
+            printWarning(`⚠️ Q${questionNumber}: Rate limited (attempt ${attempt}/${RATE_LIMIT_CONFIG.maxRetries + 1}). Waiting ${waitSeconds}s before retry...`);
+            await delay(waitTime);
+          } else {
+            // Last attempt - rate limit reached
+            if (skipOnRateLimit) {
+              printWarning(`⚠️ Q${questionNumber}: Rate limited after ${attempt} attempts, skipping...`);
+              failedQuestions.push(questionNumber);
+              return {
+                questionIndex: questionNumber,
+                suggestedAnswer: 'UNKNOWN',
+                explanation: `Skipped (rate limited after ${attempt} attempts)`,
+                confidence: 'low',
+                selector: '',
+              };
+            } else {
+              throw error;
+            }
+          }
+        } else if (lastError.isQuotaExhausted) {
+          printWarning(`⚠️ Q${questionNumber}: Quota exhausted`);
+          if (skipOnRateLimit) {
+            failedQuestions.push(questionNumber);
+            return {
+              questionIndex: questionNumber,
+              suggestedAnswer: 'UNKNOWN',
+              explanation: 'Skipped (quota exhausted)',
+              confidence: 'low',
+              selector: '',
+            };
+          } else {
+            throw error;
+          }
+        } else if (lastError.isAuthError) {
+          printError(`❌ Q${questionNumber}: Invalid GROQ_API_KEY`);
           throw error;
-        }
-      } else if (lastError.isAuthError) {
-        printError(`❌ Q${questionNumber}: Invalid GROQ_API_KEY`);
-        throw error;
-      } else if (isLastAttempt) {
-        if (skipOnRateLimit) {
-          printWarning(`⚠️ Q${questionNumber}: Failed after ${attempt} attempts, skipping...`);
-          failedQuestions.push(questionNumber);
-          return {
-            questionIndex: questionNumber,
-            suggestedAnswer: 'UNKNOWN',
-            explanation: `Failed after ${attempt} attempts: ${lastError.message}`,
-            confidence: 'low',
-            selector: '',
-          };
-        } else {
-          throw error;
+        } else if (isLastAttempt) {
+          if (skipOnRateLimit) {
+            printWarning(`⚠️ Q${questionNumber}: Failed after ${attempt} attempts, skipping...`);
+            failedQuestions.push(questionNumber);
+            return {
+              questionIndex: questionNumber,
+              suggestedAnswer: 'UNKNOWN',
+              explanation: `Failed after ${attempt} attempts: ${lastError.message}`,
+              confidence: 'low',
+              selector: '',
+            };
+          } else {
+            throw error;
+          }
         }
       }
-    }
   }
 
   // Fallback (should not reach here)

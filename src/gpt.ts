@@ -58,6 +58,7 @@ interface ErrorAnalysis {
   isQuotaExhausted: boolean;
   isAuthError: boolean;
   message: string;
+  retryAfterMs?: number; // Optional: wait time suggested by API
 }
 
 interface ApiError {
@@ -68,6 +69,9 @@ interface ApiError {
     message?: string;
     type?: string;
   };
+  headers?: {
+    'retry-after'?: string;
+  };
 }
 
 function analyzeErrorType(error: unknown): ErrorAnalysis {
@@ -77,13 +81,12 @@ function analyzeErrorType(error: unknown): ErrorAnalysis {
   const message = err.message ?? err.error?.message ?? '';
   const messageLower = message.toLowerCase();
 
-  // Check for quota exhaustion: 429 with quota-related message
+  // Check for quota exhaustion: must have "quota" or "billing" (not rate limit messages)
   const isQuotaExhausted = status === 429 && (
     messageLower.includes('quota') ||
     messageLower.includes('billing') ||
-    messageLower.includes('exceeded') ||
     messageLower.includes('insufficient_quota')
-  );
+  ) && !messageLower.includes('requests per minute') && !messageLower.includes('tokens per minute');
 
   // Check for rate limit: 429 or RateLimitError code (but not quota)
   const isRateLimit = !isQuotaExhausted && (status === 429 || code === 'RateLimitError');
@@ -91,11 +94,21 @@ function analyzeErrorType(error: unknown): ErrorAnalysis {
   // Check for auth error: 401 or AuthenticationError code
   const isAuthError = status === 401 || code === 'AuthenticationError';
 
+  // Try to extract wait time from error message or headers
+  let retryAfterMs: number | undefined;
+  const retryMatch = message.match(/try again in (\d+(?:\.\d+)?)\s*(?:s|ms)/i);
+  if (retryMatch) {
+    const unit = message.match(/try again in \d+(?:\.\d+)?\s*(s|ms)/i)?.[1] || 's';
+    const value = parseFloat(retryMatch[1]);
+    retryAfterMs = unit === 'ms' ? value : Math.ceil(value * 1000);
+  }
+
   return {
     isRateLimit,
     isQuotaExhausted,
     isAuthError,
-    message
+    message,
+    retryAfterMs
   };
 }
 
@@ -258,19 +271,22 @@ export async function analyzeQuestion(
 
       // Handle rate limit with retry
       if (errorInfo.isRateLimit && attempt < RATE_LIMIT_CONFIG.maxRetries) {
-        // Increase backoff delay exponentially
-        currentBackoffDelay = Math.min(
-          currentBackoffDelay * RATE_LIMIT_CONFIG.backoffMultiplier,
-          RATE_LIMIT_CONFIG.maxBackoffDelay
-        );
+        // Use wait time from error message if available, otherwise use exponential backoff
+        const waitTime = errorInfo.retryAfterMs || 
+          Math.min(
+            currentBackoffDelay * RATE_LIMIT_CONFIG.backoffMultiplier,
+            RATE_LIMIT_CONFIG.maxBackoffDelay
+          );
+        
+        currentBackoffDelay = waitTime;
         
         printWarning(
           `Q${questionNumber}: Rate limited (attempt ${attempt + 1}/${RATE_LIMIT_CONFIG.maxRetries + 1}). ` +
-          `Waiting ${(currentBackoffDelay / 1000).toFixed(1)}s before retry...`
+          `Waiting ${(waitTime / 1000).toFixed(1)}s before retry...`
         );
         
         // Wait before retrying
-        await delay(currentBackoffDelay);
+        await delay(waitTime);
         continue;
       }
 
