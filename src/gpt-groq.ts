@@ -115,15 +115,16 @@ export async function validateApiKey(): Promise<boolean> {
     return false;
   }
 
-  if (!apiKey.startsWith('gsk_')) {
-    printError('❌ Invalid GROQ_API_KEY format (should start with "gsk_")');
+  // Accept both gsk_ (standard) and xai_ (xAI variant) prefixes
+  if (!apiKey.startsWith('gsk_') && !apiKey.startsWith('xai_')) {
+    printError('❌ Invalid GROQ_API_KEY format (should start with "gsk_" or "xai_")');
     return false;
   }
 
   // Try a test call to validate the key
   try {
     const response = await groq.chat.completions.create({
-      model: 'mixtral-8x7b-32768', // Groq's fast model
+      model: 'llama-3.3-70b-versatile', // Current recommended Groq model
       messages: [{ role: 'user', content: 'test' }],
       max_tokens: 10,
     });
@@ -189,7 +190,7 @@ ANSWER: B
 EXPLANATION: Paris is the capital of France.`;
 
       const response = await groq.chat.completions.create({
-        model: 'mixtral-8x7b-32768', // Groq's fastest model
+        model: 'llama-3.3-70b-versatile', // Current recommended Groq model
         messages: [
           {
             role: 'user',
