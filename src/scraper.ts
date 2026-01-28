@@ -81,6 +81,32 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
   }
   // Extract raw question data from the DOM
   const rawQuestions = await page.evaluate(() => {
+    // Helper: Auto-detect the correct question container selector
+    function detectQuestionSelector(): { selector: string; count: number } {
+      const selectors = [
+        '.que.multichoice',           // Standard Moodle (classic theme)
+        '.que[class*="multichoice"]', // With additional classes
+        '.qtype_multichoice',         // Type-based selector
+        '.que',                        // Fallback: any .que
+      ];
+
+      for (const selector of selectors) {
+        const elements = document.querySelectorAll(selector);
+        if (elements.length > 0) {
+          // Verify this selector actually contains question content
+          for (const el of Array.from(elements)) {
+            if (el.querySelector('.qtext, .question-content, [id^="question-"]')) {
+              return { selector, count: elements.length };
+            }
+          }
+        }
+      }
+      
+      // Last resort: Look for any element with question-like structure
+      const lastResort = document.querySelectorAll('.que, .question, .qtype_multichoice, [id^="question-"]');
+      return { selector: '.que, .question, .qtype_multichoice, [id^="question-"]', count: lastResort.length };
+    }
+
     // Helper: Extract question ID from container
     function getQuestionId(container: Element): string {
       const id = container.id; // e.g., "question-12345-67890"
@@ -88,7 +114,7 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
         return id; // Use full ID for uniqueness
       }
       // Fallback: generate from index
-      const index = Array.from(document.querySelectorAll('.que')).indexOf(container);
+      const index = Array.from(document.querySelectorAll('.que, .question, [id^="question-"]')).indexOf(container);
       return `que-index-${index}`;
     }
 
@@ -98,8 +124,9 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
              container.querySelector('input[type="checkbox"]') !== null;
     }
 
+    const { selector: detectedSelector, count: selectorCount } = detectQuestionSelector();
     const questionContainers = Array.from(
-      document.querySelectorAll('.que.multichoice')
+      document.querySelectorAll(detectedSelector)
     );
 
     const results: Array<{
@@ -112,6 +139,10 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
       skipped: boolean;
       skipReason?: string;
     }> = [];
+
+    // Return detection info for logging
+    (results as any).detectedSelector = detectedSelector;
+    (results as any).selectorCount = selectorCount;
 
     questionContainers.forEach((container, index) => {
       // Skip multi-select questions
@@ -130,18 +161,41 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
         return;
       }
 
-      const questionId = getQuestionId(container);
-      
-      // Extract question text
-      const qtextElement = container.querySelector('.qtext');
-      const questionText = qtextElement?.textContent?.trim() || '';
+       const questionId = getQuestionId(container);
+       
+       // Extract question text - try multiple selectors
+       let qtextElement = container.querySelector('.qtext') ||
+                         container.querySelector('.question-content') ||
+                         container.querySelector('[class*="text"]');
+       
+       const questionText = qtextElement?.textContent?.trim() || '';
 
-      // Check for images in question
-      const hasImage = qtextElement?.querySelector('img') !== null;
+       // Check for images in question
+       const hasImage = (qtextElement?.querySelector('img') || container.querySelector('img')) !== null;
 
-      // Extract option texts
-      const labels = Array.from(container.querySelectorAll('.answer label'));
-      const optionTexts = labels.map(label => label.textContent?.trim() || '');
+       // Extract option texts - try multiple selectors for options
+       let labels = Array.from(container.querySelectorAll('.answer label'));
+       
+       // Fallback: look for labels in common answer containers
+       if (labels.length === 0) {
+         labels = Array.from(container.querySelectorAll('label[for*="answer"]'));
+       }
+       
+       // Fallback: look for any label near radio buttons
+       if (labels.length === 0) {
+         const radios = Array.from(container.querySelectorAll('input[type="radio"]'));
+         labels = radios.map(radio => {
+           const label = radio.parentElement?.querySelector('label');
+           return label || radio.nextElementSibling;
+         }).filter((el): el is Element => el !== null && el !== undefined);
+       }
+       
+       const optionTexts = labels.map(label => {
+         if (label instanceof HTMLElement) {
+           return label.textContent?.trim() || '';
+         }
+         return '';
+       });
 
       // Skip questions with less than 2 options
       if (optionTexts.length < 2) {
@@ -175,6 +229,15 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
 
   // Process raw questions and build stable selectors
   const scrapedQuestions: ScrapedQuestion[] = [];
+
+  // Log detection results for debugging
+  const detectedSelector = (rawQuestions as any).detectedSelector;
+  const selectorCount = (rawQuestions as any).selectorCount;
+  if (detectedSelector && selectorCount === 0) {
+    printWarning(`No questions found with selector: ${detectedSelector}`);
+    printWarning(`This might mean the Moodle HTML structure is different than expected.`);
+    printWarning(`Try running: bun diagnose-selectors.js to analyze the page structure.`);
+  }
 
   for (const raw of rawQuestions) {
     // Skip questions marked for skipping
