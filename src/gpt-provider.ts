@@ -19,14 +19,22 @@ export interface AnswerResult {
 // Dynamically load the appropriate provider
 async function loadProvider() {
   const provider = process.env.LLM_PROVIDER?.toLowerCase() || 'openai';
+  const validProviders = ['openai', 'ollama', 'groq'];
+  
+  // Validate provider name
+  if (!validProviders.includes(provider)) {
+    throw new Error(
+      `Invalid LLM_PROVIDER: "${provider}". ` +
+      `Must be one of: ${validProviders.join(', ')}. ` +
+      `Set: export LLM_PROVIDER=ollama (or openai, groq)`
+    );
+  }
   
   switch (provider) {
     case 'ollama':
       return import('./gpt-ollama.js');
     case 'groq':
-      // TODO: Create gpt-groq.ts
-      console.warn('Groq provider not yet implemented. Falling back to OpenAI.');
-      return import('./gpt.js');
+      return import('./gpt-groq.js');
     case 'openai':
     default:
       return import('./gpt.js');
@@ -90,7 +98,7 @@ export async function getProviderInfo(): Promise<{
     case 'groq':
       return {
         name: 'Groq',
-        description: 'Free cloud LLM (no rate limits)'
+        description: 'Free cloud LLM (super fast, unlimited requests)'
       };
     default:
       return {

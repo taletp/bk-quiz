@@ -8,7 +8,7 @@ import {
   PageTracker 
 } from './navigation.js';
 import { scrapeQuestions, ScrapedQuestion } from './scraper.js';
-import { analyzeQuestion, validateApiKey, AnswerResult, getFailedQuestions } from './gpt-provider.js';
+import { analyzeQuestion, validateApiKey, AnswerResult, getFailedQuestions, getProviderInfo } from './gpt-provider.js';
 import { applyHighlights, HighlightData } from './overlay.js';
 import { waitForEnter, createSeparator, formatText, printSection, printSuccess, printWarning, printError } from './utils.js';
 
@@ -83,7 +83,12 @@ function printMultiSelectWarning(questionNumber: number): void {
 // ============================================================================
 
 async function main(): Promise<void> {
-  printSection('Quiz Solver starting');
+   printSection('Quiz Solver starting');
+   
+   // Display which provider is being used
+   const providerInfo = await getProviderInfo();
+   console.log(`📡 Using: ${providerInfo.name} ${providerInfo.endpoint ? `(${providerInfo.endpoint})` : ''}`);
+   console.log('');
 
   // Step 1: Launch browser and wait for login
   console.log('Step 1: Launching browser...');
@@ -110,13 +115,18 @@ async function main(): Promise<void> {
      await exitWithError(browser, `❌ Failed to load quiz page: ${message}`);
    }
 
-  // Step 3: Validate API key
-  console.log('Step 3: Validating OpenAI API key...');
-  const isValidKey = await validateApiKey();
-  if (!isValidKey) {
-    await exitWithError(browser, 'Invalid OPENAI_API_KEY. Please check your .env file and ensure it contains a valid OpenAI API key.');
-  }
-  printSuccess('API key validated\n');
+   // Step 3: Validate API key
+   console.log('Step 3: Validating LLM provider...');
+   const providerInfoValidation = await getProviderInfo();
+   console.log(`   Using: ${providerInfoValidation.name} ${providerInfoValidation.endpoint ? `(${providerInfoValidation.endpoint})` : ''}`);
+   const isValidKey = await validateApiKey();
+   if (!isValidKey) {
+     const errorMsg = providerInfoValidation.name === 'OpenAI' 
+       ? 'Invalid OPENAI_API_KEY. Please check your .env file and ensure it contains a valid OpenAI API key.'
+       : `Invalid ${providerInfoValidation.name} configuration. Please check your environment variables.`;
+     await exitWithError(browser, errorMsg);
+   }
+   printSuccess('LLM provider validated\n');
 
   // Step 4: Process quiz pages
   console.log('Step 4: Processing quiz questions...\n');
