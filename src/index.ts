@@ -189,8 +189,26 @@ async function main(): Promise<void> {
         // Auto-select the answer in the browser (but don't submit)
         if (result && result.suggestedAnswer !== 'UNKNOWN' && result.selector) {
           try {
-            // Click the radio button/label to select it
-            await page.click(result.selector);
+            // Handle selectors with special characters (like colons)
+            // Try direct click first
+            let clickSucceeded = false;
+            try {
+              await page.click(result.selector);
+              clickSucceeded = true;
+            } catch (clickError) {
+              // If selector has special chars (e.g., contains ":"), try via getElementById
+              if (result.selector.startsWith('#')) {
+                const elementId = result.selector.substring(1); // Remove # prefix
+                await page.evaluate((id) => {
+                  const elem = document.getElementById(id);
+                  if (elem instanceof HTMLInputElement) {
+                    elem.checked = true;
+                    elem.dispatchEvent(new Event('change', { bubbles: true }));
+                  }
+                }, elementId);
+                clickSucceeded = true;
+              }
+            }
             
             // Wait a moment for the click to register
             await page.waitForTimeout(100);
@@ -216,22 +234,35 @@ async function main(): Promise<void> {
               console.log(`✅ Auto-selected: ${result.suggestedAnswer}\n`);
             } else {
               // If click didn't work, try alternative: directly set the radio button
-              await page.evaluate((selector) => {
-                const elem = document.querySelector(selector);
-                if (elem instanceof HTMLInputElement) {
-                  elem.checked = true;
-                  elem.dispatchEvent(new Event('change', { bubbles: true }));
-                } else {
-                  const radioId = elem?.getAttribute('for');
-                  if (radioId) {
-                    const radio = document.getElementById(radioId);
-                    if (radio instanceof HTMLInputElement) {
-                      radio.checked = true;
-                      radio.dispatchEvent(new Event('change', { bubbles: true }));
+              // Try using the selector as an ID first
+              if (result.selector.startsWith('#')) {
+                const elementId = result.selector.substring(1);
+                await page.evaluate((id) => {
+                  const elem = document.getElementById(id);
+                  if (elem instanceof HTMLInputElement) {
+                    elem.checked = true;
+                    elem.dispatchEvent(new Event('change', { bubbles: true }));
+                  }
+                }, elementId);
+              } else {
+                // Fallback: use querySelector
+                await page.evaluate((selector) => {
+                  const elem = document.querySelector(selector);
+                  if (elem instanceof HTMLInputElement) {
+                    elem.checked = true;
+                    elem.dispatchEvent(new Event('change', { bubbles: true }));
+                  } else {
+                    const radioId = elem?.getAttribute('for');
+                    if (radioId) {
+                      const radio = document.getElementById(radioId);
+                      if (radio instanceof HTMLInputElement) {
+                        radio.checked = true;
+                        radio.dispatchEvent(new Event('change', { bubbles: true }));
+                      }
                     }
                   }
-                }
-              }, result.selector);
+                }, result.selector);
+              }
               console.log(`✅ Auto-selected: ${result.suggestedAnswer}\n`);
             }
           } catch (error) {
