@@ -11,6 +11,7 @@ import { scrapeQuestions, ScrapedQuestion } from './scraper.js';
 import { analyzeQuestion, validateApiKey, AnswerResult, getFailedQuestions, getProviderInfo } from './gpt-provider.js';
 import { applyHighlights, HighlightData } from './overlay.js';
 import { waitForEnter, createSeparator, formatText, printSection, printSuccess, printWarning, printError } from './utils.js';
+import { exportAnswers, type ExportedAnswer } from './export-answers.js';
 
 // ============================================================================
 // Constants
@@ -128,102 +129,142 @@ async function main(): Promise<void> {
    }
    printSuccess('LLM provider validated\n');
 
-  // Step 4: Process quiz pages
-  console.log('Step 4: Processing quiz questions...\n');
-  const pageTracker = new PageTracker();
-  let totalProcessed = 0;
-  let totalSkipped = 0;
+   // Step 4: Process quiz pages
+   console.log('Step 4: Processing quiz questions...\n');
+   const pageTracker = new PageTracker();
+   let totalProcessed = 0;
+   let totalSkipped = 0;
+   
+   // Collect all answers for export
+   const collectedAnswers: ExportedAnswer[] = [];
 
-  while (true) {
-    const currentUrl = page.url();
-    
-    // Check for infinite loop
-    if (pageTracker.hasProcessed(page)) {
-      printWarning('Already processed this page, stopping');
-      break;
-    }
-    pageTracker.markAsProcessed(page);
-    
-    // Scrape current page
-    console.log(`📄 Processing page ${pageTracker.getProcessedCount()}...`);
-    const questions = await scrapeQuestions(page);
-    console.log(`   Found ${questions.length} valid questions\n`);
-    
-    const highlights: HighlightData[] = [];
-    
-    // Process each question
-    for (const question of questions) {
-      // Check 100-question cap
-      if (totalProcessed >= MAX_QUESTIONS) {
-        printWarning(`Reached ${MAX_QUESTIONS} question limit. Stopping to prevent runaway costs.\n`);
-        break;
-      }
-      
-      totalProcessed++;
-      
-      // Send to GPT
-      const result = await analyzeQuestion(question, totalProcessed);
-      
-      // Print formatted output
-      printFormattedAnswer(question, result, totalProcessed);
-      
-      // Store highlight data
-      if (result && result.suggestedAnswer !== 'UNKNOWN' && result.selector) {
-        highlights.push({ 
-          selector: result.selector, 
-          letter: result.suggestedAnswer 
-        });
-      }
-    }
-    
-    // Apply highlights to this page
-    if (highlights.length > 0) {
-      await applyHighlights(page, highlights);
-      printSuccess(`Applied ${highlights.length} highlights to page\n`);
-    }
-    
-    // Check if we hit the limit
-    if (totalProcessed >= MAX_QUESTIONS) {
-      break;
-    }
-    
-    // Check for Next button
-    const nextButton = await findNextButton(page);
-    if (!nextButton) {
-      printSuccess('No more pages (reached last page)\n');
-      break; // Last page
-    }
-    
-    // Navigate to next page
-    console.log('⏭️  Navigating to next page...\n');
-    const navigated = await navigateToNextPage(page);
+   while (true) {
+     const currentUrl = page.url();
+     
+     // Check for infinite loop
+     if (pageTracker.hasProcessed(page)) {
+       printWarning('Already processed this page, stopping');
+       break;
+     }
+     pageTracker.markAsProcessed(page);
+     
+     // Scrape current page
+     console.log(`📄 Processing page ${pageTracker.getProcessedCount()}...`);
+     const questions = await scrapeQuestions(page);
+     console.log(`   Found ${questions.length} valid questions\n`);
+     
+     const highlights: HighlightData[] = [];
+     
+     // Process each question
+     for (const question of questions) {
+       // Check 100-question cap
+       if (totalProcessed >= MAX_QUESTIONS) {
+         printWarning(`Reached ${MAX_QUESTIONS} question limit. Stopping to prevent runaway costs.\n`);
+         break;
+       }
+       
+       totalProcessed++;
+       
+       // Send to GPT
+       const result = await analyzeQuestion(question, totalProcessed);
+       
+       // Print formatted output
+       printFormattedAnswer(question, result, totalProcessed);
+       
+       // Collect answer for export
+       if (result) {
+         collectedAnswers.push({
+           questionNumber: totalProcessed,
+           question: question.questionText,
+           options: question.options.map(opt => ({
+             letter: opt.label,
+             text: opt.text
+           })),
+           suggestedAnswer: result.suggestedAnswer,
+           explanation: result.explanation,
+           confidence: result.confidence
+         });
+       }
+       
+       // Auto-select the answer in the browser (but don't submit)
+       if (result && result.suggestedAnswer !== 'UNKNOWN' && result.selector) {
+         try {
+           await page.click(result.selector);
+           console.log(`✅ Auto-selected: ${result.suggestedAnswer}\n`);
+         } catch (error) {
+           printWarning(`Could not auto-select answer for Q${totalProcessed}`);
+         }
+         
+         // Store highlight data
+         highlights.push({ 
+           selector: result.selector, 
+           letter: result.suggestedAnswer 
+         });
+       }
+     }
+     
+     // Apply highlights to this page
+     if (highlights.length > 0) {
+       await applyHighlights(page, highlights);
+       printSuccess(`Applied ${highlights.length} highlights to page\n`);
+     }
+     
+     // Check if we hit the limit
+     if (totalProcessed >= MAX_QUESTIONS) {
+       break;
+     }
+     
+     // Check for Next button
+     const nextButton = await findNextButton(page);
+     if (!nextButton) {
+       printSuccess('No more pages (reached last page)\n');
+       break; // Last page
+     }
+     
+     // Navigate to next page
+     console.log('⏭️  Navigating to next page...\n');
+     const navigated = await navigateToNextPage(page);
     if (!navigated) {
       printWarning('Failed to navigate to next page\n');
       break;
     }
   }
 
-   // Step 5: Print final summary
-   console.log(createSeparator(80));
-   printSuccess('Quiz processing complete!');
-   console.log(`   Questions answered: ${totalProcessed}`);
-   console.log(`   Questions skipped: ${totalSkipped}`);
-   const failedQuestions = getFailedQuestions();
-   if (failedQuestions.length > 0) {
-     console.log(`   Questions skipped (rate limited): Q${failedQuestions.join(', Q')}`);
-   }
-   console.log('🔍 Check browser for highlighted answers');
-   console.log('');
-   console.log('👉 Press Enter to close browser, or Ctrl+C to exit immediately.');
-   console.log(createSeparator(80));
+   // Step 5: Export answers to file
+    let exportFilePath = '';
+    if (collectedAnswers.length > 0) {
+      exportFilePath = exportAnswers(collectedAnswers, quizUrl, {
+        format: 'txt',
+        includeExplanations: true,
+        timestamp: true,
+        outputDir: './quiz-answers'
+      });
+    }
 
-  // Step 6: Wait for user to review
-  await waitForEnter('');
+    // Step 6: Print final summary
+    console.log(createSeparator(80));
+    printSuccess('Quiz processing complete!');
+    console.log(`   Questions answered: ${totalProcessed}`);
+    console.log(`   Questions skipped: ${totalSkipped}`);
+    const failedQuestions = getFailedQuestions();
+    if (failedQuestions.length > 0) {
+      console.log(`   Questions skipped (rate limited): Q${failedQuestions.join(', Q')}`);
+    }
+    if (exportFilePath) {
+      console.log(`📄 Export file: ${exportFilePath}`);
+    }
+    console.log('🔍 Check browser for highlighted answers');
+    console.log('');
+    console.log('👉 Press Enter to close browser, or Ctrl+C to exit immediately.');
+    console.log(createSeparator(80));
 
-  // Step 7: Clean up
-  await browser.close();
-  printSuccess('Browser closed. Goodbye!');
-  process.exit(0);
+   // Step 7: Wait for user to review
+   await waitForEnter('');
+
+   // Step 8: Clean up
+   await browser.close();
+   printSuccess('Browser closed. Goodbye!');
+   process.exit(0);
 }
 
 // ============================================================================
