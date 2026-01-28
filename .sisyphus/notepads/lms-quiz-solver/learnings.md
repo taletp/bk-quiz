@@ -232,3 +232,117 @@ if (!await validateSelector(page, selector)) {
 
 ---
 
+
+## Task 8: Main Entry Point & Orchestration
+
+### Key Learnings
+
+1. **Orchestration Flow**
+   - Entry point coordinates all modules: browser → navigation → scraper → gpt → overlay
+   - 6-step flow: launch → login → prompt URL → validate → process pages → review
+   - Each step has clear success/failure paths with exitWithError pattern
+   - Browser stays open throughout entire process for user review
+
+2. **Error Handling Strategy**
+   - `exitWithError(browser, message)` pattern provides graceful failures
+   - Always prints error message, waits for Enter, closes browser, then exits(1)
+   - Prevents orphaned browser processes on error conditions
+   - User gets time to read error before cleanup happens
+
+3. **Console Output Formatting**
+   - Inline formatting (no separate output.ts module) keeps code simple
+   - Unicode box drawing (━) creates visual separators
+   - Emoji indicators (🎯, 📝, ⚠️, ✅) improve readability
+   - Question text truncated to 100 chars to prevent terminal overflow
+   - Consistent 80-character separator width
+
+4. **Question Counter Persistence**
+   - Counter variable `totalProcessed` persists across ALL pages (not reset per page)
+   - 100-question cap checked at start of each question iteration
+   - gpt.ts module has internal counter but main loop also tracks for display
+   - Break from inner loop stops processing but allows highlight application
+
+5. **Highlight Application Timing**
+   - Highlights collected per-page, then applied once per page (batch operation)
+   - Applied AFTER all questions on current page processed
+   - Prevents DOM thrashing from repeated style injections
+   - Requires filtering out UNKNOWN results (no valid selector)
+
+6. **Page Navigation Loop**
+   - While-true loop with multiple break conditions:
+     - PageTracker detects revisited page
+     - 100-question cap reached
+     - No Next button found (last page)
+     - navigateToNextPage() returns false (navigation failed)
+   - PageTracker.markAsProcessed() called BEFORE scraping (prevents duplicate work)
+
+7. **Browser Lifecycle Management**
+   - SIGINT handler inherited from browser.ts (global browserRef)
+   - Main function has catch-all error handler for unexpected failures
+   - Final browser.close() always called before process.exit()
+   - User controls timing of browser closure via Enter keypress
+
+8. **Readline Utility Reuse**
+   - `waitForEnter()` function duplicated from browser.ts for local use
+   - Could be refactored to shared utility module, but duplication acceptable for simplicity
+   - Pattern: create interface → question → close → resolve promise
+   - Used for both user input (quiz URL) and flow control (press Enter to continue)
+
+### TypeScript Compilation
+- ✅ bunx tsc --noEmit passes with no errors
+- ✅ All module imports resolve correctly (.js extensions for ESM)
+- ✅ Type inference works for ScrapedQuestion, AnswerResult, HighlightData
+
+### Files Created/Modified
+- ✅ src/index.ts: Main entry point with full orchestration
+- ✅ Imports all modules: browser, navigation, scraper, gpt, overlay
+- ✅ Implements: waitForEnter, exitWithError, printFormattedAnswer helpers
+- ✅ Main flow: 6 steps from launch to cleanup
+
+### Console Output Examples
+
+**Success Output:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Question 1/100
+What is the capital of France?
+
+Options:
+  A. London
+  B. Paris
+  C. Berlin
+  D. Madrid
+
+🎯 Suggested Answer: B
+📝 Explanation: Paris is the capital and most populous city of France.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Final Summary:**
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Quiz processing complete!
+   Questions answered: 45
+   Questions skipped: 0
+🔍 Check browser for highlighted answers
+
+👉 Press Enter to close browser, or Ctrl+C to exit immediately.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### Integration Points
+
+1. **browser.ts** → `launchBrowser()` returns { browser, page }
+2. **navigation.ts** → `promptForQuizUrl()`, `isQuizAttemptPage()`, `PageTracker`, `findNextButton()`, `navigateToNextPage()`
+3. **scraper.ts** → `scrapeQuestions(page)` returns ScrapedQuestion[]
+4. **gpt.ts** → `validateApiKey()`, `analyzeQuestion(question, number)` returns AnswerResult | null
+5. **overlay.ts** → `applyHighlights(page, highlights)` injects CSS and applies styles
+
+### Why Not Use Multi-File Output Module
+- Console formatting is simple enough to inline (~50 lines)
+- No reusability benefits (only used once in main flow)
+- Keeps dependencies clear (no circular imports)
+- Easier to maintain when all orchestration in one file
+
+---
+
