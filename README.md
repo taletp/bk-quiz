@@ -168,12 +168,76 @@ bunx tsc --noEmit
 
 ## ⚙️ Configuration
 
+### LLM Provider Selection
+
+The tool supports **3 different LLM providers**. Choose the one that fits your needs:
+
+| Provider | Cost | Speed | Setup | Best For |
+|----------|------|-------|-------|----------|
+| **Groq** ⭐ | FREE | ⚡⚡⚡ Super fast | 3 min | Default choice |
+| **Ollama** | FREE | 🐢 Slow (local) | 15 min | Offline use |
+| **OpenAI** | $ Paid | ⚡ Fast | 5 min | Best quality |
+
+**Recommended for most users: Groq** (fast, free, no setup hassles)
+
+#### Quick Provider Setup
+
+**Using Groq (FREE, recommended):**
+```bash
+export LLM_PROVIDER=groq
+export GROQ_API_KEY=gsk_xxxxx  # Get from https://console.groq.com/keys
+bun run start
+```
+
+**Using Ollama (FREE, requires local server):**
+```bash
+ollama serve  # Start Ollama server in another terminal first
+export LLM_PROVIDER=ollama
+bun run start
+```
+
+**Using OpenAI (PAID, best quality):**
+```bash
+export LLM_PROVIDER=openai
+export OPENAI_API_KEY=sk-xxxxx  # Get from https://platform.openai.com/api-keys
+bun run start
+```
+
+---
+
 ### Environment Variables (.env)
 
+For **OpenAI** (default provider):
 ```bash
 # Required: Your OpenAI API key
 OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+For **Groq**:
+```bash
+# Required: Your Groq API key (free)
+GROQ_API_KEY=gsk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+For **Ollama** (no API key needed):
+```bash
+# Optional - Ollama server endpoint (defaults to localhost:11434)
+OLLAMA_ENDPOINT=http://localhost:11434
+OLLAMA_MODEL=mistral  # Model to use (optional)
+```
+
+---
+
+### Detailed Provider Guides
+
+- 📖 **[Groq Setup Guide](./GROQ_SETUP.md)** - Fast, free cloud LLM (recommended)
+- 📖 **[Ollama Setup Guide](./OLLAMA_SETUP.md)** - Free local LLM (offline use)
+- 📖 **[LLM Provider Comparison](./LLM_PROVIDER_SWITCH.md)** - Compare all 3 providers
+- 📖 **[Provider Switching](./LLM_PROVIDER_SWITCH.md)** - Switch between providers anytime
+
+---
+
+### OpenAI-Specific Configuration
 
 **Getting Your API Key:**
 1. Go to https://platform.openai.com/account/api-keys
@@ -187,7 +251,7 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 - Never share your API key
 - Use environment-specific keys if deploying
 
-### Cost Management
+### Cost Management (OpenAI only)
 
 **Built-in Safeguards:**
 - 100-question limit per run (~$1-3 cost)
@@ -196,7 +260,7 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 **To prevent unexpected costs:**
 - Start with small quizzes
-- Monitor your OpenAI usage dashboard
+- Monitor your OpenAI usage dashboard at https://platform.openai.com/account/billing/overview
 - Set up billing alerts on OpenAI
 
 ---
