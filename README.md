@@ -384,14 +384,45 @@ Question 3/10
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-#### Monitor Question Limit
+#### Configure Question Limit
 
-The tool includes a 100-question safety limit:
-```
-⚠️ Reached 100 question limit. Stopping to prevent runaway costs.
+The tool includes a **configurable question limit** (default: 500) to control API costs:
+
+**Default (500 questions):**
+```bash
+bun run start
 ```
 
-If you hit this, you can run again for the remaining questions.
+**Increase limit for longer quizzes:**
+```bash
+# Process up to 1000 questions
+export MAX_QUESTIONS=1000
+bun run start
+
+# Or on Windows PowerShell:
+$env:MAX_QUESTIONS=1000
+bun run start
+```
+
+**Decrease limit to save costs:**
+```bash
+# Process only 50 questions
+export MAX_QUESTIONS=50
+bun run start
+```
+
+**Cost Reference:**
+- 50 questions = ~$0.50-1.00
+- 100 questions = ~$1.00-2.00
+- 500 questions = ~$5.00-10.00
+- 1000 questions = ~$10.00-20.00
+
+When you hit the limit:
+```
+⚠️ Reached 500 question limit. Stopping to prevent runaway costs.
+```
+
+**To process remaining questions**, run again and you'll continue with the next page.
 
 ---
 

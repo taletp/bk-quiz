@@ -17,7 +17,10 @@ import { exportAnswers, type ExportedAnswer } from './export-answers.js';
 // Constants
 // ============================================================================
 
-const MAX_QUESTIONS = 100;
+// Maximum questions to process per run
+// Can be overridden via environment variable: MAX_QUESTIONS=500
+// Higher values = higher API costs, but allows processing longer quizzes
+const MAX_QUESTIONS = parseInt(process.env.MAX_QUESTIONS || '500', 10);
 
 // ============================================================================
 // Utility Functions
