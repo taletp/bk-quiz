@@ -33,9 +33,40 @@ const openai = new OpenAI({
 const MAX_QUESTIONS_PER_RUN = 100;
 let questionsProcessed = 0;
 
+// Rate limiting configuration
+const RATE_LIMIT_CONFIG = {
+  baseDelay: 1000,           // 1 second between requests (default)
+  maxRetries: 3,             // Retry up to 3 times on rate limit
+  backoffMultiplier: 2,      // Double wait time on each retry
+  maxBackoffDelay: 60000,    // Cap at 60 seconds
+};
+
+// Track rate limit state
+let lastRequestTime = 0;
+let currentBackoffDelay = RATE_LIMIT_CONFIG.baseDelay;
+
 // ============================================================================
 // API Key Validation
 // ============================================================================
+
+/**
+ * Enforces rate limiting between API requests by calculating
+ * time to wait based on last request time and configured delay.
+ */
+async function enforceRateLimit(): Promise<void> {
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  
+  // Get delay from environment variable or use configured delay
+  const configuredDelay = parseInt(process.env.REQUEST_DELAY_MS || '', 10) || currentBackoffDelay;
+  const timeToWait = Math.max(0, configuredDelay - timeSinceLastRequest);
+
+  if (timeToWait > 0) {
+    await delay(timeToWait);
+  }
+
+  lastRequestTime = Date.now();
+}
 
 export async function validateApiKey(): Promise<boolean> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -75,46 +106,95 @@ export async function analyzeQuestion(
 
   questionsProcessed++;
 
-  try {
-    // Build prompt with labeled options
-    const prompt = buildPrompt(question);
-    
-    // Prepare message content - support both text-only and image questions
-    let messageContent: (
-      | { type: "text"; text: string }
-      | { type: "image_url"; image_url: { url: string } }
-    )[] = [
-      { type: "text", text: prompt }
-    ];
+  // Apply rate limiting with exponential backoff on retries
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt <= RATE_LIMIT_CONFIG.maxRetries; attempt++) {
+    try {
+      // Wait for rate limit delay before making request
+      await enforceRateLimit();
 
-    // Add image if present
-    if (question.hasImage && question.imageBase64) {
-      messageContent.push({
-        type: "image_url",
-        image_url: { url: `data:image/png;base64,${question.imageBase64}` }
+      // Build prompt with labeled options
+      const prompt = buildPrompt(question);
+      
+      // Prepare message content - support both text-only and image questions
+      let messageContent: (
+        | { type: "text"; text: string }
+        | { type: "image_url"; image_url: { url: string } }
+      )[] = [
+        { type: "text", text: prompt }
+      ];
+
+      // Add image if present
+      if (question.hasImage && question.imageBase64) {
+        messageContent.push({
+          type: "image_url",
+          image_url: { url: `data:image/png;base64,${question.imageBase64}` }
+        });
+      }
+
+      // Call Chat Completions API
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        max_tokens: 500,
+        temperature: 0.3,
+        messages: [{
+          role: "user",
+          content: messageContent
+        }]
       });
+
+      // Parse response
+      const content = response.choices[0]?.message?.content || "";
+      const result = parseResponse(content, question, questionNumber);
+
+      // Reset backoff on success
+      currentBackoffDelay = RATE_LIMIT_CONFIG.baseDelay;
+      return result;
+
+    } catch (error) {
+      lastError = error;
+      const err = error as Record<string, unknown> & { status?: number; code?: string };
+
+      // Check if this is a rate limit error
+      const isRateLimit = err.status === 429 || err.code === "RateLimitError";
+
+      if (isRateLimit && attempt < RATE_LIMIT_CONFIG.maxRetries) {
+        // Increase backoff delay exponentially
+        currentBackoffDelay = Math.min(
+          currentBackoffDelay * RATE_LIMIT_CONFIG.backoffMultiplier,
+          RATE_LIMIT_CONFIG.maxBackoffDelay
+        );
+        
+        printWarning(
+          `Q${questionNumber}: Rate limited (attempt ${attempt + 1}/${RATE_LIMIT_CONFIG.maxRetries + 1}). ` +
+          `Waiting ${(currentBackoffDelay / 1000).toFixed(1)}s before retry...`
+        );
+        
+        // Wait before retrying
+        await delay(currentBackoffDelay);
+        continue;
+      }
+
+      // For non-rate-limit errors or final attempt, handle the error
+      if (isRateLimit && attempt === RATE_LIMIT_CONFIG.maxRetries) {
+        printError(
+          `Rate limited by OpenAI API after ${RATE_LIMIT_CONFIG.maxRetries + 1} attempts.\n` +
+          `Your API plan may have strict rate limits. Options:\n` +
+          `1. Wait 1-2 minutes and run again\n` +
+          `2. Upgrade your OpenAI plan for higher limits\n` +
+          `3. Use environment variable to increase delays:\n` +
+          `   export REQUEST_DELAY_MS=2000  (2 seconds between requests)`
+        );
+        process.exit(1);
+      }
+
+      // For other errors, return the error result and don't retry
+      return handleError(lastError, question, questionNumber);
     }
-
-    // Call Chat Completions API
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      max_tokens: 500,
-      temperature: 0.3,
-      messages: [{
-        role: "user",
-        content: messageContent
-      }]
-    });
-
-    // Parse response
-    const content = response.choices[0]?.message?.content || "";
-    const result = parseResponse(content, question, questionNumber);
-
-    return result;
-
-  } catch (error) {
-    return handleError(error, question, questionNumber);
   }
+
+  // Should not reach here, but handle just in case
+  return handleError(lastError, question, questionNumber);
 }
 
 // ============================================================================
