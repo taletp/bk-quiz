@@ -36,7 +36,7 @@ export async function launchBrowser(): Promise<{ browser: Browser; page: Page }>
           chromium.launch({
             channel: 'msedge',
             headless: false,
-            timeout: 30000,
+            timeout: 60000,
             args: [
               '--disable-web-resources',
               '--disable-component-update',
@@ -49,7 +49,7 @@ export async function launchBrowser(): Promise<{ browser: Browser; page: Page }>
         launcher: () =>
           chromium.launch({
             headless: false,
-            timeout: 30000,
+            timeout: 60000,
             args: [
               '--disable-web-resources',
               '--disable-component-update',
@@ -62,7 +62,7 @@ export async function launchBrowser(): Promise<{ browser: Browser; page: Page }>
         launcher: () =>
           firefox.launch({
             headless: false,
-            timeout: 30000,
+            timeout: 60000,
           }),
       }
     );
@@ -74,7 +74,7 @@ export async function launchBrowser(): Promise<{ browser: Browser; page: Page }>
         launcher: () =>
           chromium.launch({
             headless: false,
-            timeout: 30000,
+            timeout: 60000,
           }),
       },
       {
@@ -82,7 +82,7 @@ export async function launchBrowser(): Promise<{ browser: Browser; page: Page }>
         launcher: () =>
           firefox.launch({
             headless: false,
-            timeout: 30000,
+            timeout: 60000,
           }),
       }
     );
@@ -103,6 +103,18 @@ export async function launchBrowser(): Promise<{ browser: Browser; page: Page }>
 
       browserRef = browser;
       const page = await browser.newPage();
+      
+      // Ensure window is visible - set explicit size and maximize
+      await page.setViewportSize({ width: 1280, height: 800 });
+      
+      // Try to maximize/focus window (Playwright limitation, but helps on some systems)
+      await page.evaluate(() => {
+        window.resizeTo(1280, 800);
+        window.moveTo(0, 0);
+      }).catch(() => {
+        // Ignore if window operations fail (browser may restrict them)
+      });
+      
       await page.goto('https://lms.hcmut.edu.vn/', {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
