@@ -292,8 +292,13 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
        let selector = '';
        if (raw.radioIds && raw.radioIds[i]) {
          // Use direct radio button ID selector (most reliable)
+         // Format: #ID (without escaping - overlay will use getElementById)
          selector = `#${raw.radioIds[i]}`;
-         if (!await validateSelector(page, selector)) {
+         // Validate using getElementById for IDs with special chars
+         const testEl = await page.evaluate((id) => document.getElementById(id) !== null, raw.radioIds[i]);
+         if (testEl) {
+           // Keep the selector as-is, overlay will handle it correctly
+         } else {
            selector = '';
          }
        }

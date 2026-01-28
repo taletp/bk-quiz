@@ -60,7 +60,17 @@ export async function applyHighlights(page: Page, highlights: HighlightData[]): 
     
     // Step 2: Apply highlights to each selector
     highlightsData.forEach(({ selector, letter }) => {
-      const el = document.querySelector(selector);
+      let el: Element | null = null;
+      
+      // If selector is an ID (starts with #), use getElementById for better handling
+      if (selector.startsWith('#')) {
+        const id = selector.substring(1);
+        el = document.getElementById(id);
+      } else {
+        // Otherwise use querySelector for complex selectors
+        el = document.querySelector(selector);
+      }
+      
       if (!el) {
         console.warn(`Quiz Solver: Selector not found - ${selector}`);
         return;
