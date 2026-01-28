@@ -135,6 +135,7 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
       questionText: string;
       optionCount: number;
       optionTexts: string[];
+      radioIds: string[];  // NEW: Track radio button IDs for selector building
       hasImage: boolean;
       skipped: boolean;
       skipReason?: string;
@@ -145,57 +146,92 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
     (results as any).selectorCount = selectorCount;
 
     questionContainers.forEach((container, index) => {
-      // Skip multi-select questions
-      if (isMultiSelect(container)) {
-        console.warn(`⚠️ Q${index + 1}: Multi-select detected - skipping`);
-        results.push({
-          index,
-          questionId: '',
-          questionText: '',
-          optionCount: 0,
-          optionTexts: [],
-          hasImage: false,
-          skipped: true,
-          skipReason: 'multi-select'
-        });
-        return;
-      }
-
-       const questionId = getQuestionId(container);
-       
-       // Extract question text - try multiple selectors
-       let qtextElement = container.querySelector('.qtext') ||
-                         container.querySelector('.question-content') ||
-                         container.querySelector('[class*="text"]');
-       
-       const questionText = qtextElement?.textContent?.trim() || '';
-
-       // Check for images in question
-       const hasImage = (qtextElement?.querySelector('img') || container.querySelector('img')) !== null;
-
-       // Extract option texts - try multiple selectors for options
-       let labels = Array.from(container.querySelectorAll('.answer label'));
-       
-       // Fallback: look for labels in common answer containers
-       if (labels.length === 0) {
-         labels = Array.from(container.querySelectorAll('label[for*="answer"]'));
-       }
-       
-       // Fallback: look for any label near radio buttons
-       if (labels.length === 0) {
-         const radios = Array.from(container.querySelectorAll('input[type="radio"]'));
-         labels = radios.map(radio => {
-           const label = radio.parentElement?.querySelector('label');
-           return label || radio.nextElementSibling;
-         }).filter((el): el is Element => el !== null && el !== undefined);
-       }
-       
-       const optionTexts = labels.map(label => {
-         if (label instanceof HTMLElement) {
-           return label.textContent?.trim() || '';
-         }
-         return '';
+     // Skip multi-select questions
+     if (isMultiSelect(container)) {
+       console.warn(`⚠️ Q${index + 1}: Multi-select detected - skipping`);
+       results.push({
+         index,
+         questionId: '',
+         questionText: '',
+         optionCount: 0,
+         optionTexts: [],
+         radioIds: [],
+         hasImage: false,
+         skipped: true,
+         skipReason: 'multi-select'
        });
+       return;
+     }
+
+      const questionId = getQuestionId(container);
+      
+      // Extract question text - try multiple selectors
+      let qtextElement = container.querySelector('.qtext') ||
+                        container.querySelector('.question-content') ||
+                        container.querySelector('[class*="text"]');
+      
+      const questionText = qtextElement?.textContent?.trim() || '';
+
+      // Check for images in question
+      const hasImage = (qtextElement?.querySelector('img') || container.querySelector('img')) !== null;
+
+      // Extract option texts and radio IDs - try multiple selectors for options
+      let options: Element[] = [];
+      let radioInputs: HTMLInputElement[] = [];
+      
+      // Primary: Look for divs with data-region="answer-label" (Moodle 4.x Boost theme)
+      options = Array.from(container.querySelectorAll('[data-region="answer-label"]'));
+      if (options.length > 0) {
+        // For this structure, find the corresponding radio inputs
+        const radioElements = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+        radioInputs = radioElements.filter(radio => radio.value && !radio.value.startsWith('-1'));
+      }
+      
+      // Fallback 1: Look for labels in answer containers
+      if (options.length === 0) {
+        const labelElements = Array.from(container.querySelectorAll('.answer label'));
+        options = labelElements;
+        const radioElements = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+        radioInputs = radioElements.filter(radio => radio.value && !radio.value.startsWith('-1'));
+      }
+      
+      // Fallback 2: Look for divs with aria-labelledby (alternative structure)
+      if (options.length === 0) {
+        const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+        const validRadios = radios.filter(r => r.value && !r.value.startsWith('-1'));
+        options = validRadios.map(radio => {
+          const labelId = radio.getAttribute('aria-labelledby');
+          if (labelId) {
+            return container.querySelector(`#${labelId}`);
+          }
+          return radio.parentElement?.querySelector('label') || radio.nextElementSibling;
+        }).filter((el): el is Element => el !== null && el !== undefined);
+        radioInputs = validRadios;
+      }
+      
+      // Fallback 3: Look for any label near radio buttons
+      if (options.length === 0) {
+        const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+        const validRadios = radios.filter(r => r.value && !r.value.startsWith('-1'));
+        options = validRadios.map(radio => {
+          const label = radio.parentElement?.querySelector('label');
+          return label || radio.nextElementSibling;
+        }).filter((el): el is Element => el !== null && el !== undefined);
+        radioInputs = validRadios;
+      }
+      
+      const optionTexts = options.map(option => {
+        // For aria-labelledby divs, extract just the text after the letter (a, b, c, d)
+        if (option.textContent) {
+          let text = option.textContent.trim();
+          // Remove the leading "a. ", "b. ", etc.
+          text = text.replace(/^[a-z]\.\s*/, '');
+          return text;
+        }
+        return '';
+      }).filter(text => text.length > 0);
+
+      const radioIds = radioInputs.map(radio => radio.id || '');
 
       // Skip questions with less than 2 options
       if (optionTexts.length < 2) {
@@ -206,6 +242,7 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
           questionText,
           optionCount: optionTexts.length,
           optionTexts: [],
+          radioIds: [],
           hasImage,
           skipped: true,
           skipReason: 'insufficient-options'
@@ -219,6 +256,7 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
         questionText,
         optionCount: optionTexts.length,
         optionTexts,
+        radioIds,
         hasImage,
         skipped: false
       });
@@ -250,17 +288,29 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
      for (let i = 0; i < raw.optionTexts.length; i++) {
        const label = String.fromCharCode(65 + i); // 0→A, 1→B, 2→C, etc.
        
-       // Try primary selector first
-       let selector = buildOptionSelector(raw.questionId, i);
-       if (!await validateSelector(page, selector)) {
-         // Try fallback selector
-         selector = buildFallbackSelector(raw.questionId, i);
+       // Try primary selector first - use radio ID if available
+       let selector = '';
+       if (raw.radioIds && raw.radioIds[i]) {
+         // Use direct radio button ID selector (most reliable)
+         selector = `#${raw.radioIds[i]}`;
          if (!await validateSelector(page, selector)) {
-           printWarning(`Q${raw.index + 1}, Option ${label}: Could not build stable selector`);
-           selector = ''; // Mark as invalid
+           selector = '';
          }
        }
        
+       // If no radio ID selector worked, try nth-child patterns
+       if (!selector) {
+         selector = buildOptionSelector(raw.questionId, i);
+         if (!await validateSelector(page, selector)) {
+           // Try fallback selector
+           selector = buildFallbackSelector(raw.questionId, i);
+           if (!await validateSelector(page, selector)) {
+             printWarning(`Q${raw.index + 1}, Option ${label}: Could not build stable selector`);
+             selector = ''; // Mark as invalid
+           }
+         }
+       }
+        
        // Validate selector before adding option
        if (!selector) {
          printWarning(`Q${raw.index + 1}: Could not build selector for option ${label}`);
