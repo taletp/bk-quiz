@@ -8,7 +8,7 @@ import {
   PageTracker 
 } from './navigation.js';
 import { scrapeQuestions, ScrapedQuestion } from './scraper.js';
-import { analyzeQuestion, validateApiKey, AnswerResult, getFailedQuestions } from './gpt.js';
+import { analyzeQuestion, validateApiKey, AnswerResult, getFailedQuestions } from './gpt-provider.js';
 import { applyHighlights, HighlightData } from './overlay.js';
 import { waitForEnter, createSeparator, formatText, printSection, printSuccess, printWarning, printError } from './utils.js';
 
