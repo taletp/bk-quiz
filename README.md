@@ -493,6 +493,193 @@ bk-quiz/
 
 ## 🐛 Troubleshooting
 
+### Windows-Specific Browser Issues
+
+Since Playwright browser automation on Windows can be finicky, here's a comprehensive guide to get it working.
+
+#### Step-by-Step Windows Troubleshooting
+
+**1. Install/Update Microsoft Edge (Recommended)**
+
+Edge is the most reliable browser on Windows for this tool. It's usually pre-installed, but update it to latest:
+
+```
+1. Go to: https://www.microsoft.com/en-us/edge
+2. Click "Download for Windows"
+3. Run the installer
+4. Restart your computer
+5. Try running bun run start again
+```
+
+Edge is preferred because:
+- ✅ Built for Windows
+- ✅ Integrated with system
+- ✅ Most reliable with Playwright
+- ✅ Better performance than Chromium port
+
+**2. Reinstall Playwright Browsers**
+
+```bash
+# Remove existing browser installations
+rm -r %USERPROFILE%\.cache\ms-playwright
+# or manually: Navigate to C:\Users\[YourUsername]\AppData\Local\ms-playwright and delete
+
+# Reinstall fresh
+bunx playwright install chromium firefox
+```
+
+**3. Kill Existing Browser Processes**
+
+If multiple browser instances are running, they can block new launches:
+
+```bash
+# PowerShell (Admin mode required):
+Get-Process | Where-Object {$_.ProcessName -like "*chrome*" -or $_.ProcessName -like "*msedge*" -or $_.ProcessName -like "*firefox*"} | Stop-Process -Force
+
+# Or manually via Task Manager:
+# 1. Press Ctrl+Shift+Esc
+# 2. Find: chrome.exe, msedge.exe, firefox.exe
+# 3. Right-click → End task
+# 4. Try again
+```
+
+**4. Run as Administrator**
+
+Some Windows systems need elevated permissions:
+
+```bash
+# Open PowerShell as Administrator:
+# Right-click PowerShell → Run as Administrator
+
+# Then:
+cd C:\Users\YourUsername\Desktop\troll\bk-quiz
+bun run start
+```
+
+**5. Disable Antivirus/Firewall Temporarily**
+
+Antivirus software can block browser launches. Test without it:
+
+```
+Windows Defender:
+  1. Settings → Privacy & Security
+  2. Virus & threat protection
+  3. Manage settings
+  4. Toggle "Real-time protection" OFF
+  5. Try bun run start
+  6. Toggle protection back ON when done
+
+Other antivirus:
+  - Look for "disable" or "pause protection" option
+  - Disable for 10 minutes
+  - Re-enable after testing
+```
+
+**6. Clear Playwright Cache**
+
+```bash
+# On Windows PowerShell:
+$env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+Remove-Item -Path "$env:USERPROFILE\.cache\ms-playwright" -Recurse -Force
+
+# Then reinstall:
+bunx playwright install chromium
+```
+
+**7. Check for System Updates**
+
+Outdated Windows can cause issues:
+
+```
+Settings → System → About
+Click "Check for updates"
+Install all available updates
+Restart computer
+```
+
+**8. Increase Browser Launch Timeout**
+
+If browser launches slowly on your system:
+
+```bash
+# PowerShell - set environment variable:
+$env:PLAYWRIGHT_LAUNCH_TIMEOUT="60000"
+bun run start
+
+# Or permanently (for current session):
+$env:DEBUG="pw:api"
+bun run start
+```
+
+**9. Try Different Browser**
+
+If Edge doesn't work, the tool will try Chromium and Firefox automatically. But you can force a specific browser:
+
+```bash
+# Force Firefox (more stable on some systems):
+bunx playwright install firefox
+bun run start
+
+# The tool will auto-detect and use Firefox if Chromium fails
+```
+
+**10. Clean System Resources**
+
+Free up memory and disk space:
+
+```bash
+# Check disk space:
+Get-Volume  # PowerShell
+
+# Free up space if < 500MB available:
+# - Delete Downloads folder
+# - Empty Recycle Bin (Shift+Del)
+# - Run Disk Cleanup: cleanmgr.exe
+
+# Restart computer after cleanup:
+shutdown /r /t 0
+```
+
+#### Windows Browser Priority Chain
+
+The tool now tries browsers in this order on Windows:
+
+```
+Windows 10/11:
+  1. Edge (msedge) - PREFERRED ✅ Most reliable
+  2. Chromium (Playwright's Chromium) - Fallback 
+  3. Firefox - Final fallback
+
+macOS/Linux:
+  1. Chromium - Preferred
+  2. Firefox - Fallback
+```
+
+#### Testing Individual Browser Launches
+
+To test if a specific browser can launch:
+
+```bash
+# Create test-edge.js in project root:
+const { chromium } = require('playwright');
+
+(async () => {
+  try {
+    console.log('Testing Edge launch...');
+    const browser = await chromium.launch({ channel: 'msedge', headless: false });
+    console.log('✅ Edge launched successfully!');
+    await browser.close();
+  } catch (e) {
+    console.log('❌ Edge launch failed:', e.message);
+  }
+})();
+
+# Run it:
+bun test-edge.js
+```
+
+---
+
 ### Common Issues
 
 #### 1. "❌ Invalid OPENAI_API_KEY"
