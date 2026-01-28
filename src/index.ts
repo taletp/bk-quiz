@@ -186,21 +186,64 @@ async function main(): Promise<void> {
          });
        }
        
-       // Auto-select the answer in the browser (but don't submit)
-       if (result && result.suggestedAnswer !== 'UNKNOWN' && result.selector) {
-         try {
-           await page.click(result.selector);
-           console.log(`✅ Auto-selected: ${result.suggestedAnswer}\n`);
-         } catch (error) {
-           printWarning(`Could not auto-select answer for Q${totalProcessed}`);
-         }
-         
-         // Store highlight data
-         highlights.push({ 
-           selector: result.selector, 
-           letter: result.suggestedAnswer 
-         });
-       }
+        // Auto-select the answer in the browser (but don't submit)
+        if (result && result.suggestedAnswer !== 'UNKNOWN' && result.selector) {
+          try {
+            // Click the radio button/label to select it
+            await page.click(result.selector);
+            
+            // Wait a moment for the click to register
+            await page.waitForTimeout(100);
+            
+            // Verify the radio button is actually checked
+            const isChecked = await page.evaluate((selector) => {
+              const elem = document.querySelector(selector);
+              if (elem instanceof HTMLInputElement) {
+                return elem.checked;
+              }
+              // If it's a label, check the associated radio button
+              const radioId = elem?.getAttribute('for');
+              if (radioId) {
+                const radio = document.getElementById(radioId);
+                return radio instanceof HTMLInputElement && radio.checked;
+              }
+              // Try to find radio button within the selector path
+              const radio = elem?.querySelector('input[type="radio"]');
+              return radio instanceof HTMLInputElement && radio.checked;
+            }, result.selector);
+            
+            if (isChecked) {
+              console.log(`✅ Auto-selected: ${result.suggestedAnswer}\n`);
+            } else {
+              // If click didn't work, try alternative: directly set the radio button
+              await page.evaluate((selector) => {
+                const elem = document.querySelector(selector);
+                if (elem instanceof HTMLInputElement) {
+                  elem.checked = true;
+                  elem.dispatchEvent(new Event('change', { bubbles: true }));
+                } else {
+                  const radioId = elem?.getAttribute('for');
+                  if (radioId) {
+                    const radio = document.getElementById(radioId);
+                    if (radio instanceof HTMLInputElement) {
+                      radio.checked = true;
+                      radio.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                  }
+                }
+              }, result.selector);
+              console.log(`✅ Auto-selected: ${result.suggestedAnswer}\n`);
+            }
+          } catch (error) {
+            printWarning(`Could not auto-select answer for Q${totalProcessed}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+          
+          // Store highlight data
+          highlights.push({ 
+            selector: result.selector, 
+            letter: result.suggestedAnswer 
+          });
+        }
      }
      
      // Apply highlights to this page
