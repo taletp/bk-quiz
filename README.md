@@ -866,6 +866,50 @@ Or add temporary logs before running.
 - ✅ Minimal RAM (< 500MB)
 - ✅ Just needs internet connection
 
+### Q: What if I hit the OpenAI rate limit?
+
+**A:** The tool now has **intelligent rate limiting** built-in:
+
+1. **Automatic Rate Limiting:**
+   - Waits 1 second between requests (default)
+   - Prevents most rate limit issues
+   - Works for most OpenAI API plans
+
+2. **Automatic Retry on Rate Limit:**
+   - Retries up to 3 times on 429 errors
+   - Uses exponential backoff (1s → 2s → 4s → ...)
+   - Caps at 60-second max wait
+
+3. **Customize Delay (if needed):**
+   ```bash
+   # Increase delay to 2 seconds between requests
+   export REQUEST_DELAY_MS=2000
+   bun run src/index.ts
+   
+   # Or 3 seconds for very strict rate limits
+   export REQUEST_DELAY_MS=3000
+   bun run src/index.ts
+   ```
+
+4. **If Still Rate Limited:**
+   - You may have a strict API plan (e.g., free tier)
+   - Options:
+     - Increase REQUEST_DELAY_MS to 3000-5000
+     - Upgrade your OpenAI plan
+     - Split quiz into smaller batches (50 questions at a time)
+     - Wait 1-2 minutes between runs
+
+5. **Example with Very Conservative Settings:**
+   ```bash
+   # For free tier or strict limits:
+   export REQUEST_DELAY_MS=5000
+   bun run src/index.ts
+   
+   # This adds 5 seconds between each question
+   # For 100 questions = ~500 seconds = 8+ minutes total
+   # But guarantees no rate limits
+   ```
+
 ---
 
 ## 📊 Performance
