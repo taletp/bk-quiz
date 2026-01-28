@@ -45,6 +45,60 @@ const RATE_LIMIT_CONFIG = {
 let lastRequestTime = 0;
 let currentBackoffDelay = RATE_LIMIT_CONFIG.baseDelay;
 
+// Skip-on-rate-limit mode and failed questions tracking
+let skipOnRateLimit = process.env.SKIP_ON_RATE_LIMIT === 'true';
+const failedQuestions: number[] = [];
+
+// ============================================================================
+// Error Analysis
+// ============================================================================
+
+interface ErrorAnalysis {
+  isRateLimit: boolean;
+  isQuotaExhausted: boolean;
+  isAuthError: boolean;
+  message: string;
+}
+
+interface ApiError {
+  status?: number;
+  code?: string;
+  message?: string;
+  error?: {
+    message?: string;
+    type?: string;
+  };
+}
+
+function analyzeErrorType(error: unknown): ErrorAnalysis {
+  const err = error as ApiError;
+  const status = err.status;
+  const code = err.code ?? '';
+  const message = err.message ?? err.error?.message ?? '';
+  const messageLower = message.toLowerCase();
+
+  // Check for quota exhaustion: 429 with quota-related message
+  const isQuotaExhausted = status === 429 && (
+    messageLower.includes('quota') ||
+    messageLower.includes('billing') ||
+    messageLower.includes('exceeded') ||
+    messageLower.includes('insufficient_quota')
+  );
+
+  // Check for rate limit: 429 or RateLimitError code (but not quota)
+  const isRateLimit = !isQuotaExhausted && (status === 429 || code === 'RateLimitError');
+
+  // Check for auth error: 401 or AuthenticationError code
+  const isAuthError = status === 401 || code === 'AuthenticationError';
+
+  return {
+    isRateLimit,
+    isQuotaExhausted,
+    isAuthError,
+    message
+  };
+}
+
 // ============================================================================
 // API Key Validation
 // ============================================================================
@@ -85,7 +139,31 @@ export async function validateApiKey(): Promise<boolean> {
     await openai.models.list();
     return true;
   } catch (error) {
-    printError('Failed to authenticate with OpenAI API. Check your API key and billing.');
+    const errorInfo = analyzeErrorType(error);
+    
+    if (errorInfo.isQuotaExhausted) {
+      printError(
+        'OpenAI API quota exhausted. Your account has no remaining credits.\n' +
+        'Solutions:\n' +
+        '  1. Check your billing status: https://platform.openai.com/account/billing/overview\n' +
+        '  2. Add a payment method or purchase credits\n' +
+        '  3. Wait for quota reset if on free tier'
+      );
+    } else if (errorInfo.isAuthError) {
+      printError(
+        'Invalid OpenAI API key. Authentication failed.\n' +
+        'Solutions:\n' +
+        '  1. Verify your API key is correct in .env file\n' +
+        '  2. Generate a new key at: https://platform.openai.com/api-keys\n' +
+        '  3. Ensure the key starts with "sk-"'
+      );
+    } else {
+      printError(
+        'Failed to authenticate with OpenAI API.\n' +
+        `Error: ${errorInfo.message || 'Unknown error'}\n` +
+        'Check your API key and billing at: https://platform.openai.com/account/billing/overview'
+      );
+    }
     return false;
   }
 }
@@ -153,12 +231,33 @@ export async function analyzeQuestion(
 
     } catch (error) {
       lastError = error;
-      const err = error as Record<string, unknown> & { status?: number; code?: string };
+      const errorInfo = analyzeErrorType(error);
 
-      // Check if this is a rate limit error
-      const isRateLimit = err.status === 429 || err.code === "RateLimitError";
+      // Handle quota exhaustion - cannot recover by retrying
+      if (errorInfo.isQuotaExhausted) {
+        printError(
+          `Q${questionNumber}: OpenAI API quota exhausted!\n` +
+          'Your account has no remaining credits. Solutions:\n' +
+          '  1. Check billing: https://platform.openai.com/account/billing/overview\n' +
+          '  2. Add credits or upgrade your plan\n' +
+          '  3. Wait for quota reset if on free tier'
+        );
+        
+        if (skipOnRateLimit) {
+          printWarning(`Skipping question ${questionNumber} due to quota exhaustion (SKIP_ON_RATE_LIMIT=true)`);
+          failedQuestions.push(questionNumber);
+          return createUnknownResult(question, questionNumber);
+        } else {
+          printError(
+            'To continue with remaining questions, set SKIP_ON_RATE_LIMIT=true:\n' +
+            '  export SKIP_ON_RATE_LIMIT=true'
+          );
+          process.exit(1);
+        }
+      }
 
-      if (isRateLimit && attempt < RATE_LIMIT_CONFIG.maxRetries) {
+      // Handle rate limit with retry
+      if (errorInfo.isRateLimit && attempt < RATE_LIMIT_CONFIG.maxRetries) {
         // Increase backoff delay exponentially
         currentBackoffDelay = Math.min(
           currentBackoffDelay * RATE_LIMIT_CONFIG.backoffMultiplier,
@@ -175,17 +274,24 @@ export async function analyzeQuestion(
         continue;
       }
 
-      // For non-rate-limit errors or final attempt, handle the error
-      if (isRateLimit && attempt === RATE_LIMIT_CONFIG.maxRetries) {
+      // Handle rate limit at final retry
+      if (errorInfo.isRateLimit && attempt === RATE_LIMIT_CONFIG.maxRetries) {
         printError(
-          `Rate limited by OpenAI API after ${RATE_LIMIT_CONFIG.maxRetries + 1} attempts.\n` +
-          `Your API plan may have strict rate limits. Options:\n` +
-          `1. Wait 1-2 minutes and run again\n` +
-          `2. Upgrade your OpenAI plan for higher limits\n` +
-          `3. Use environment variable to increase delays:\n` +
-          `   export REQUEST_DELAY_MS=2000  (2 seconds between requests)`
+          `Q${questionNumber}: Rate limited by OpenAI API after ${RATE_LIMIT_CONFIG.maxRetries + 1} attempts.\n` +
+          'Your API plan may have strict rate limits. Options:\n' +
+          '  1. Wait 1-2 minutes and run again\n' +
+          '  2. Upgrade your OpenAI plan for higher limits\n' +
+          '  3. Use SKIP_ON_RATE_LIMIT=true to skip failed questions\n' +
+          '  4. Increase delays: export REQUEST_DELAY_MS=2000'
         );
-        process.exit(1);
+        
+        if (skipOnRateLimit) {
+          printWarning(`Skipping question ${questionNumber} due to rate limit (SKIP_ON_RATE_LIMIT=true)`);
+          failedQuestions.push(questionNumber);
+          return createUnknownResult(question, questionNumber);
+        } else {
+          process.exit(1);
+        }
       }
 
       // For other errors, return the error result and don't retry
@@ -335,4 +441,12 @@ export function resetQuestionCounter(): void {
 
 export function getQuestionsProcessed(): number {
   return questionsProcessed;
+}
+
+export function getFailedQuestions(): number[] {
+  return [...failedQuestions];
+}
+
+export function setSkipOnRateLimit(skip: boolean): void {
+  skipOnRateLimit = skip;
 }

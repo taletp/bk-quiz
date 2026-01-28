@@ -8,7 +8,7 @@ import {
   PageTracker 
 } from './navigation.js';
 import { scrapeQuestions, ScrapedQuestion } from './scraper.js';
-import { analyzeQuestion, validateApiKey, AnswerResult } from './gpt.js';
+import { analyzeQuestion, validateApiKey, AnswerResult, getFailedQuestions } from './gpt.js';
 import { applyHighlights, HighlightData } from './overlay.js';
 import { waitForEnter, createSeparator, formatText, printSection, printSuccess, printWarning, printError } from './utils.js';
 
@@ -193,15 +193,19 @@ async function main(): Promise<void> {
     }
   }
 
-  // Step 5: Print final summary
-  console.log(createSeparator(80));
-  printSuccess('Quiz processing complete!');
-  console.log(`   Questions answered: ${totalProcessed}`);
-  console.log(`   Questions skipped: ${totalSkipped}`);
-  console.log('🔍 Check browser for highlighted answers');
-  console.log('');
-  console.log('👉 Press Enter to close browser, or Ctrl+C to exit immediately.');
-  console.log(createSeparator(80));
+   // Step 5: Print final summary
+   console.log(createSeparator(80));
+   printSuccess('Quiz processing complete!');
+   console.log(`   Questions answered: ${totalProcessed}`);
+   console.log(`   Questions skipped: ${totalSkipped}`);
+   const failedQuestions = getFailedQuestions();
+   if (failedQuestions.length > 0) {
+     console.log(`   Questions skipped (rate limited): Q${failedQuestions.join(', Q')}`);
+   }
+   console.log('🔍 Check browser for highlighted answers');
+   console.log('');
+   console.log('👉 Press Enter to close browser, or Ctrl+C to exit immediately.');
+   console.log(createSeparator(80));
 
   // Step 6: Wait for user to review
   await waitForEnter('');
