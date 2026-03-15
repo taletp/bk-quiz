@@ -1,7 +1,10 @@
 import { Page } from 'playwright';
 import * as readline from 'node:readline';
-import { printWarning, printError } from './utils.js';
-import { isValidQuizUrl, sanitizeInput } from './validation.js';
+import { existsSync } from 'fs';
+import { printWarning, printError, printSuccess } from './utils.js';
+import { isValidQuizUrl, isValidReviewUrl, sanitizeInput } from './validation.js';
+import { listReviewFiles } from './review-export.js';
+import type { AppMode } from './types.js';
 
 /**
  * Waits for user to input a quiz URL via readline
@@ -155,17 +158,172 @@ export class PageTracker {
    *
    * @param page - Playwright page object
    */
-  markAsProcessed(page: Page): void {
-    this.processedPages.add(this.getPageIdentifier(page));
-  }
+   markAsProcessed(page: Page): void {
+     this.processedPages.add(this.getPageIdentifier(page));
+   }
 
-  /**
-   * Gets the count of processed pages
-   * Useful for debugging and logging
-   *
-   * @returns Number of unique pages processed
-   */
-  getProcessedCount(): number {
-    return this.processedPages.size;
-  }
+   /**
+    * Gets the count of processed pages
+    * Useful for debugging and logging
+    *
+    * @returns Number of unique pages processed
+    */
+   getProcessedCount(): number {
+     return this.processedPages.size;
+   }
+}
+
+/**
+ * Interactive menu: "Select mode: 1) solve 2) review 3) auto"
+ * Default is 'solve' (if user just presses Enter)
+ * Validates input is 1, 2, 3 or name string
+ * Returns 'solve' | 'review' | 'auto'
+ */
+export async function promptForMode(): Promise<AppMode> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    const ask = () => {
+      rl.question('Select mode: 1) solve 2) review 3) auto (default: solve): ', (answer) => {
+        const trimmed = answer.trim().toLowerCase();
+        
+        // Default to solve if empty input
+        if (trimmed === '') {
+          rl.close();
+          resolve('solve');
+          return;
+        }
+        
+        // Map numeric choices to mode strings
+        if (trimmed === '1') {
+          rl.close();
+          resolve('solve');
+          return;
+        }
+        
+        if (trimmed === '2') {
+          rl.close();
+          resolve('review');
+          return;
+        }
+        
+        if (trimmed === '3') {
+          rl.close();
+          resolve('auto');
+          return;
+        }
+        
+        // Accept string names
+        if (trimmed === 'solve' || trimmed === 'review' || trimmed === 'auto') {
+          rl.close();
+          resolve(trimmed as AppMode);
+          return;
+        }
+        
+        // Invalid input, ask again
+        console.log('Invalid choice. Please enter 1, 2, 3, or mode name.');
+        ask();
+      });
+    };
+    
+    ask();
+  });
+}
+
+/**
+ * Prompt: "Enter review page URL: "
+ * Validate using isValidReviewUrl()
+ * Loop until valid URL provided
+ * Return URL
+ */
+export async function promptForReviewUrl(): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve, reject) => {
+    const ask = () => {
+      rl.question('Enter review page URL: ', (answer) => {
+        const sanitized = sanitizeInput(answer);
+        
+        if (isValidReviewUrl(sanitized)) {
+          rl.close();
+          resolve(sanitized);
+          return;
+        }
+        
+        console.log('Invalid review URL. Expected format: /mod/quiz/review.php?attempt=123');
+        ask();
+      });
+    };
+    
+    ask();
+  });
+}
+
+/**
+ * Prompt: "Enter path to answer file (or leave blank to select from recent): "
+ * If user provides path: validate file exists, return it
+ * If user leaves blank: list recent files in ./quiz-answers/ (use listReviewFiles() from review-export.ts)
+ * User selects from list (1, 2, 3, ...)
+ * Return full filepath
+ */
+export async function promptForAnswerFile(): Promise<string> {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve, reject) => {
+    rl.question('Enter path to answer file (or leave blank to select from recent): ', (answer) => {
+      rl.close();
+      
+      const trimmed = answer.trim();
+      
+      // If user provided a path, validate it exists
+      if (trimmed !== '') {
+        if (existsSync(trimmed)) {
+          resolve(trimmed);
+        } else {
+          reject(new Error(`File not found: ${trimmed}`));
+        }
+        return;
+      }
+      
+      // User left blank, show recent files
+      const recentFiles = listReviewFiles('./quiz-answers');
+      
+      if (recentFiles.length === 0) {
+        reject(new Error('No answer files found in ./quiz-answers/'));
+        return;
+      }
+      
+      console.log('\nRecent answer files:');
+      recentFiles.forEach((file, index) => {
+        console.log(`${index + 1}) ${file}`);
+      });
+      
+      // Ask user to select from the list
+      const selectionRl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+      
+      selectionRl.question('Select file number: ', (selectionAnswer) => {
+        selectionRl.close();
+        
+        const selection = parseInt(selectionAnswer.trim(), 10);
+        
+        if (!isNaN(selection) && selection >= 1 && selection <= recentFiles.length) {
+          resolve(recentFiles[selection - 1]);
+        } else {
+          reject(new Error('Invalid selection'));
+        }
+      });
+     });
+   });
 }
