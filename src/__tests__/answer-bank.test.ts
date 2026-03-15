@@ -12,14 +12,16 @@ describe('AnswerBank', () => {
   beforeEach(() => {
     sampleData = {
       sourceUrl: 'https://lms.hcmut.edu.vn/mod/quiz/review.php?attempt=12345',
-      attemptId: '12345',
-      timestamp: new Date().toISOString(),
+      quizName: 'Test Quiz',
+      extractedAt: new Date().toISOString(),
+      totalQuestions: 2,
       answers: [
         {
           questionText: 'What is 2+2?',
           normalizedQuestion: 'what is 2+2?',
           correctAnswer: '4',
           normalizedAnswer: '4',
+          correctLetter: 'B',
           allOptions: ['3', '4', '5', '6'],
           questionHash: '7ff1aae1'  // Actual hash for 'what is 2+2?'
         },
@@ -28,6 +30,7 @@ describe('AnswerBank', () => {
           normalizedQuestion: 'what is the capital of france?',
           correctAnswer: 'Paris',
           normalizedAnswer: 'paris',
+          correctLetter: 'B',
           allOptions: ['London', 'Paris', 'Berlin', 'Madrid'],
           questionHash: '04c861e5'  // Actual hash for 'what is the capital of france?'
         }
