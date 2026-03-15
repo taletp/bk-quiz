@@ -2,6 +2,9 @@ import { Browser } from 'playwright';
 import { launchBrowser } from './browser.js';
 import { 
   promptForQuizUrl, 
+  promptForMode,
+  promptForReviewUrl,
+  promptForAnswerFile,
   isQuizAttemptPage, 
   findNextButton, 
   navigateToNextPage, 
@@ -12,6 +15,9 @@ import { analyzeQuestion, validateApiKey, AnswerResult, getFailedQuestions, getP
 import { applyHighlights, HighlightData } from './overlay.js';
 import { waitForEnter, createSeparator, formatText, printSection, printSuccess, printWarning, printError } from './utils.js';
 import { exportAnswers, type ExportedAnswer } from './export-answers.js';
+import { runReviewMode } from './mode-review.js';
+import { runAutoMode } from './mode-auto.js';
+import type { AppMode } from './types.js';
 
 // ============================================================================
 // Constants
@@ -89,6 +95,9 @@ function printMultiSelectWarning(questionNumber: number): void {
 async function main(): Promise<void> {
    printSection('Quiz Solver starting');
    
+   // Step 0: Prompt for mode
+   const mode = await promptForMode();
+   
    // Display which provider is being used
    const providerInfo = await getProviderInfo();
    console.log(`📡 Using: ${providerInfo.name} ${providerInfo.endpoint ? `(${providerInfo.endpoint})` : ''}`);
@@ -99,7 +108,87 @@ async function main(): Promise<void> {
   const { browser, page } = await launchBrowser();
   printSuccess('Logged in to LMS\n');
 
-   // Step 2: Prompt for quiz URL
+  // Branch by mode
+  if (mode === 'review') {
+    // Review mode: extract answers from a completed quiz
+    console.log('Step 2: Navigate to review page');
+    let reviewUrl = '';
+    try {
+      reviewUrl = await promptForReviewUrl();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid URL provided';
+      await exitWithError(browser, `❌ ${message}`);
+    }
+
+    // Navigate to review page
+    try {
+      await page.goto(reviewUrl);
+      await page.waitForSelector('.que', { timeout: 10000 });
+      printSuccess('Review page loaded\n');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await exitWithError(browser, `❌ Failed to load review page: ${message}`);
+    }
+
+    // Run review mode
+    try {
+      await runReviewMode(page, reviewUrl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await exitWithError(browser, `❌ Review mode failed: ${message}`);
+    }
+
+    // Done
+    console.log('\n👉 Press Enter to close browser.');
+    await waitForEnter('');
+    await browser.close();
+    return;
+  } else if (mode === 'auto') {
+    // Auto mode: use answer bank to auto-answer
+    console.log('Step 2: Load answer bank');
+    let answerFile = '';
+    try {
+      answerFile = await promptForAnswerFile();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid file provided';
+      await exitWithError(browser, `❌ ${message}`);
+    }
+
+    console.log('Step 3: Navigate to quiz');
+    let quizUrl = '';
+    try {
+      quizUrl = await promptForQuizUrl();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Invalid URL provided';
+      await exitWithError(browser, `❌ ${message}`);
+    }
+
+    // Navigate to quiz
+    try {
+      await page.goto(quizUrl);
+      await page.waitForSelector('.que', { timeout: 10000 });
+      printSuccess('Quiz page loaded\n');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await exitWithError(browser, `❌ Failed to load quiz page: ${message}`);
+    }
+
+    // Run auto mode
+    try {
+      await runAutoMode(page, quizUrl, answerFile);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      await exitWithError(browser, `❌ Auto mode failed: ${message}`);
+    }
+
+    // Done
+    console.log('\n👉 Press Enter to close browser.');
+    await waitForEnter('');
+    await browser.close();
+    return;
+  }
+
+   // Step 2: Prompt for quiz URL (solve mode)
    console.log('Step 2: Navigate to quiz');
    let quizUrl = '';
    try {
