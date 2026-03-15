@@ -1,6 +1,7 @@
 import type { Page } from 'playwright';
 import type { ScrapedQuestion } from './scraper.js';
 import { AnswerBank } from './answer-bank.js';
+import { normalizeText, similarityScore } from './normalize.js';
 import { printSuccess, printWarning } from './utils.js';
 
 /**
@@ -116,9 +117,9 @@ export async function autoSelectAnswer(
       selector,
       confidence
     };
-  } catch (error) {
-    // If standard click fails, try the fallback method for special characters in IDs
-    printWarning(`Standard click failed for question ${questionNumber}, trying fallback method: ${error.message}`);
+   } catch (error) {
+     // If standard click fails, try the fallback method for special characters in IDs
+     printWarning(`Standard click failed for question ${questionNumber}, trying fallback method: ${error instanceof Error ? error.message : String(error)}`);
     
     try {
       // Fallback for selectors with special characters (like colons in IDs)
@@ -154,7 +155,7 @@ export async function autoSelectAnswer(
         throw error; // Re-throw if not a hash selector
       }
     } catch (fallbackError) {
-      printWarning(`Question ${questionNumber}: Both click methods failed: ${fallbackError.message}`);
+      printWarning(`Question ${questionNumber}: Both click methods failed: ${fallbackError instanceof Error ? fallbackError.message : String(fallbackError)}`);
       
       return {
         questionIndex: question.index,
