@@ -62,3 +62,30 @@ export function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
+
+/**
+ * Validates that a URL is a Moodle quiz review page
+ * Pattern: /mod/quiz/review.php?attempt=NNNNN
+ *
+ * @param url - The URL to validate
+ * @returns true if URL matches quiz review pattern, false otherwise
+ */
+export function isValidReviewUrl(url: string): boolean {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.pathname.includes('/mod/quiz/review.php') && 
+           urlObj.searchParams.has('attempt');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Validates that a URL is any Moodle quiz page (attempt OR review)
+ *
+ * @param url - The URL to validate
+ * @returns true if URL is either an attempt or review page, false otherwise
+ */
+export function isValidQuizPageUrl(url: string): boolean {
+  return isValidQuizUrl(url) || isValidReviewUrl(url);
+}
