@@ -1,1054 +1,153 @@
-# 🎓 LMS Auto Quiz Solver
+# bk-quiz
 
-> **Intelligent Moodle quiz automation tool** that uses GPT-4o to analyze quiz questions and provide suggested answers with visual highlighting on the quiz page.
+> **One-command quiz solver for Moodle LMS.** Paste a quiz URL, get AI-suggested answers highlighted in your browser.
 
-[![Bun](https://img.shields.io/badge/Bun-1.0+-orange)](https://bun.sh)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue)](https://www.typescriptlang.org)
-[![License](https://img.shields.io/badge/License-MIT-green)](#license)
-
----
-
-## 📋 Table of Contents
-
-1. [Features](#features)
-2. [Quick Start](#quick-start)
-3. [Installation](#installation)
-4. [Configuration](#configuration)
-5. [Usage](#usage)
-6. [Features in Detail](#features-in-detail)
-7. [Architecture](#architecture)
-8. [Troubleshooting](#troubleshooting)
-9. [FAQ](#faq)
-10. [License](#license)
-
----
-
-## ✨ Features
-
-### Core Functionality
-- 🤖 **AI-Powered Analysis** - Uses OpenAI's GPT-4o to analyze quiz questions
-- 📸 **Image Support** - Handles image-based questions with vision API
-- 🎯 **Visual Feedback** - Highlights suggested answers directly on the quiz page
-- 📄 **Multi-Page Support** - Automatically navigates through paginated quizzes
-- 🔒 **No Auto-Submit** - User manually selects and submits answers (maintains control)
-
-### User Experience
-- 🌐 **Headed Browser** - See exactly what the tool is doing in real-time
-- ⌨️ **Simple Input** - Just paste the quiz URL and press Enter
-- 📊 **Clear Console Output** - Formatted answers with explanations
-- ⚡ **Fast Processing** - Leverages Bun's superior performance
-- 🛡️ **Cost Control** - Built-in 100-question cap to prevent runaway API costs
-
-### Safety & Guardrails
-- ❌ **No Auto-Clicking** - Tool never selects answers automatically
-- ❌ **No Quiz Submission** - Avoids accidentally submitting
-- ❌ **No Session Persistence** - Fresh login required each run
-- ✅ **Manual Multi-Select Skip** - Checkboxes are intentionally not supported
-- 🚫 **Rate Limit Protection** - Proper error handling and timeouts
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- [Bun](https://bun.sh) installed (v1.0+)
-- OpenAI API key ([get one here](https://platform.openai.com/api-keys))
-- Active HCMUT LMS login or compatible Moodle instance
-
-### 3-Minute Setup
+## Quick Start (2 minutes)
 
 ```bash
-# 1. Clone or download the project
+# 1. Install Node.js (if you don't have it)
+#    → https://nodejs.org (version 18 or higher)
+
+# 2. Clone and enter the project
+git clone <repo-url>
 cd bk-quiz
 
-# 2. Install dependencies
-bun install
+# 3. Install dependencies
+npm install
 
-# 3. Create .env file
-cp .env.example .env
+# 4. Install Playwright browsers
+npm run install:browsers
 
-# 4. Add your OpenAI API key
-# Edit .env and replace YOUR_API_KEY_HERE with your actual key
-nano .env  # or use your favorite editor
+# 5. Run the interactive setup wizard
+npm run setup
 
-# 5. Run the tool
-bun run start
+# 6. Start solving quizzes
+npm run start
 ```
 
-That's it! The browser will open automatically.
+That's it. The setup wizard will ask which AI provider you want (Groq = free & recommended) and create your `.env` file automatically.
 
 ---
 
-## 📦 Installation
+## Usage
 
-### System Requirements
+### Solve Mode (default)
 
-| Requirement | Version | Notes |
-|------------|---------|-------|
-| Bun | 1.0+ | Fast JavaScript runtime |
-| Node.js | 18+ | For npm compatibility (optional) |
-| macOS/Linux/Windows | Any | Cross-platform support |
-| RAM | 512MB+ | Minimal requirements |
-| Disk Space | 500MB+ | For Chromium browser |
-
-### Step-by-Step Installation
-
-#### 1. Install Bun (if not already installed)
-
-**macOS/Linux:**
-```bash
-curl -fsSL https://bun.sh/install | bash
-```
-
-**Windows (PowerShell):**
-```powershell
-powershell -Command "irm bun.sh/install.ps1|iex"
-```
-
-**Or visit**: https://bun.sh for alternative installation methods
-
-#### 2. Clone the Repository
+Paste a quiz URL and let the AI suggest answers:
 
 ```bash
-git clone <repository-url>
-cd bk-quiz
+npm run start
+# → paste your quiz URL → answers appear in console + browser highlights
 ```
 
-Or manually download and extract the project folder.
+### Review Mode
 
-#### 3. Install Dependencies
+Extract correct answers from a completed quiz to build an answer bank:
 
 ```bash
-bun install
+npm run review
+# or pass URL directly:
+npm run start --review "https://lms.hcmut.edu.vn/mod/quiz/review.php?attempt=12345"
 ```
 
-This will install:
-- **playwright** - Browser automation
-- **openai** - OpenAI API client
-- **dotenv** - Environment variable management
+### Auto Mode
 
-#### 4. Get OpenAI API Key
-
-1. Visit https://platform.openai.com/api-keys
-2. Sign up or log in
-3. Click "Create new secret key"
-4. Copy the key (you won't see it again!)
-5. Store it safely
-
-#### 5. Configure Environment
+Use a saved answer bank to automatically select answers:
 
 ```bash
-# Create .env file from template
-cp .env.example .env
-
-# Edit .env with your API key
-# OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxx
-```
-
-**Windows (PowerShell):**
-```powershell
-Copy-Item .env.example .env
-# Then edit .env with Notepad or your editor
-```
-
-#### 6. Verify Installation
-
-```bash
-# Should show Bun version
-bun --version
-
-# Should show all dependencies installed
-bun pm ls
-
-# Should compile without errors
-bunx tsc --noEmit
+npm run auto
+# or pass answer file directly:
+npm run start --auto "./quiz-answers/review-12345-2026-01-15.json"
 ```
 
 ---
 
-## ⚙️ Configuration
-
-### LLM Provider Selection
-
-The tool supports **3 different LLM providers**. Choose the one that fits your needs:
+## AI Providers
 
 | Provider | Cost | Speed | Setup | Best For |
 |----------|------|-------|-------|----------|
-| **Groq** ⭐ | FREE | ⚡⚡⚡ Super fast | 3 min | Default choice |
-| **Ollama** | FREE | 🐢 Slow (local) | 15 min | Offline use |
-| **OpenAI** | $ Paid | ⚡ Fast | 5 min | Best quality |
+| **Groq** ⭐ | FREE | ⚡⚡⚡ Fast | 1 minute | Default choice |
+| **Ollama** | FREE | 🐢 Slow | 10 minutes | Offline use |
+| **OpenAI** | Paid | ⚡ Fast | 2 minutes | Best accuracy |
 
-**Recommended for most users: Groq** (fast, free, no setup hassles)
+**Recommendation:** Use Groq. It's free, fast, and requires no local setup.
 
-#### Quick Provider Setup
+---
 
-**Using Groq (FREE, recommended):**
-```bash
-export LLM_PROVIDER=groq
-export GROQ_API_KEY=gsk_xxxxx  # Get from https://console.groq.com/keys
-bun run start
+## Workflow
+
 ```
-
-**Using Ollama (FREE, requires local server):**
-```bash
-ollama serve  # Start Ollama server in another terminal first
-export LLM_PROVIDER=ollama
-bun run start
-```
-
-**Using OpenAI (PAID, best quality):**
-```bash
-export LLM_PROVIDER=openai
-export OPENAI_API_KEY=sk-xxxxx  # Get from https://platform.openai.com/api-keys
-bun run start
+npm run start
+  ↓
+Browser opens → Log in to LMS manually → Press Enter
+  ↓
+Paste quiz URL
+  ↓
+AI analyzes each question → Shows answer + explanation
+  ↓
+Correct answers highlighted in browser (green border)
+  ↓
+You review and submit manually
 ```
 
 ---
 
-### Environment Variables (.env)
+## Configuration
 
-For **OpenAI** (default provider):
-```bash
-# Required: Your OpenAI API key
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+The setup wizard (`npm run setup`) creates a `.env` file for you. Advanced users can edit it manually:
 
-For **Groq**:
 ```bash
-# Required: Your Groq API key (free)
-GROQ_API_KEY=gsk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+# AI Provider
+LLM_PROVIDER=groq          # or openai, ollama
+GROQ_API_KEY=gsk_xxxxx     # Get free key: https://console.groq.com/keys
 
-For **Ollama** (no API key needed):
-```bash
-# Optional - Ollama server endpoint (defaults to localhost:11434)
-OLLAMA_ENDPOINT=http://localhost:11434
-OLLAMA_MODEL=mistral  # Model to use (optional)
+# Optional tuning
+MAX_QUESTIONS=500          # Stop after N questions
+REQUEST_DELAY_MS=1000      # Wait between API calls
 ```
 
 ---
 
-### Detailed Provider Guides
+## Troubleshooting
 
-- 📖 **[Groq Setup Guide](./GROQ_SETUP.md)** - Fast, free cloud LLM (recommended)
-- 📖 **[Ollama Setup Guide](./OLLAMA_SETUP.md)** - Free local LLM (offline use)
-- 📖 **[LLM Provider Comparison](./LLM_PROVIDER_SWITCH.md)** - Compare all 3 providers
-- 📖 **[Provider Switching](./LLM_PROVIDER_SWITCH.md)** - Switch between providers anytime
+**"Browser won't open"**
+- Windows: Make sure Edge or Chrome is installed
+- Run: `npm run install:browsers`
 
----
+**"Invalid API key"**
+- Run `npm run setup` again to reconfigure
+- For Groq: get a new key at https://console.groq.com/keys
 
-### OpenAI-Specific Configuration
-
-**Getting Your API Key:**
-1. Go to https://platform.openai.com/account/api-keys
-2. Click "Create new secret key"
-3. Name it "bk-quiz" (optional)
-4. Copy immediately (visible only once)
-5. Paste into `.env` file
-
-**Security Note:**
-- Never commit `.env` to git (it's in .gitignore)
-- Never share your API key
-- Use environment-specific keys if deploying
-
-### Cost Management (OpenAI only)
-
-**Built-in Safeguards:**
-- 100-question limit per run (~$1-3 cost)
-- 30-second timeout per API call
-- Automatic error handling (skips on timeout)
-
-**To prevent unexpected costs:**
-- Start with small quizzes
-- Monitor your OpenAI usage dashboard at https://platform.openai.com/account/billing/overview
-- Set up billing alerts on OpenAI
+**"No questions found"**
+- Make sure you're on an active quiz attempt page (URL contains `/mod/quiz/attempt.php`)
 
 ---
 
-## 📖 Usage
-
-### Basic Workflow
-
-#### 1. Start the Tool
-
-```bash
-bun run start
-```
-
-**Expected output:**
-```
-🚀 LMS Quiz Solver starting...
-✅ Browser opened at LMS homepage
-👉 Please login manually, then press Enter when done.
-```
-
-#### 2. Login to LMS
-
-- Browser window opens automatically
-- Log in to HCMUT LMS (or your Moodle instance) manually
-- Press Enter in the terminal when login is complete
-
-#### 3. Enter Quiz URL
-
-**Expected prompt:**
-```
-📋 Enter quiz URL: 
-```
-
-**Paste the quiz URL:**
-```
-https://lms.hcmut.edu.vn/mod/quiz/attempt.php?attempt=12345
-```
-
-The URL must be an **active quiz attempt** page. Here's how to find it:
-
-1. Open LMS → Navigate to your course
-2. Find the quiz and click "Attempt quiz now" or "Continue attempt"
-3. Copy the URL from the browser address bar
-4. Paste it into the tool
-
-#### 4. Watch Processing
-
-The tool will:
-- Scrape all questions on the current page
-- Send each to GPT-4o 
-- Print suggested answers to console
-- Highlight answers on the page (green border + badge)
-- Navigate to next page if it exists
-
-**Example output:**
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Question 1/10
-What is the capital of France?
-
-Options:
-  A. London
-  B. Paris
-  C. Berlin
-  D. Madrid
-
-🎯 Suggested Answer: B
-📝 Explanation: Paris is the capital and largest city of France, known for its culture and history.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-#### 5. Review Highlighted Answers
-
-Check the quiz page in the browser:
-- ✅ **Green highlighted options** = Suggested correct answers
-- 🏷️ **Small badges** = "AI: B" shows which answer the tool suggests
-- 🟡 **Yellow highlighted options** = Uncertain answers (marked "AI: ?")
-
-#### 6. Select and Submit
-
-- **Click** the highlighted answer option (green border)
-- **Verify** the radio button is selected (filled circle)
-- Navigate through pages manually if needed
-- Click "Finish attempt" or "Submit all and finish" when ready
-- Confirm submission
-
-#### 7. View Results
-
-After submission, the tool will display:
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ Quiz processing complete!
-   Questions answered: 10
-   Questions skipped: 0
-🔍 Check browser for highlighted answers
-
-👉 Press Enter to close browser, or Ctrl+C to exit immediately.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-Press Enter to close the browser.
-
-### Advanced Usage
-
-#### Quit Anytime
-
-Press **Ctrl+C** to:
-- Close the browser immediately
-- Exit the tool
-- No cleanup needed
-
-#### Skip Multi-Select Questions
-
-The tool automatically detects and skips checkbox questions:
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Question 3/10
-[Multi-select question - SKIPPED]
-⚠️ This tool only supports single-answer MCQ questions.
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-#### Configure Question Limit
-
-The tool includes a **configurable question limit** (default: 500) to control API costs:
-
-**Default (500 questions):**
-```bash
-bun run start
-```
-
-**Increase limit for longer quizzes:**
-```bash
-# Process up to 1000 questions
-export MAX_QUESTIONS=1000
-bun run start
-
-# Or on Windows PowerShell:
-$env:MAX_QUESTIONS=1000
-bun run start
-```
-
-**Decrease limit to save costs:**
-```bash
-# Process only 50 questions
-export MAX_QUESTIONS=50
-bun run start
-```
-
-**Cost Reference:**
-- 50 questions = ~$0.50-1.00
-- 100 questions = ~$1.00-2.00
-- 500 questions = ~$5.00-10.00
-- 1000 questions = ~$10.00-20.00
-
-When you hit the limit:
-```
-⚠️ Reached 500 question limit. Stopping to prevent runaway costs.
-```
-
-**To process remaining questions**, run again and you'll continue with the next page.
-
----
-
-## 🏗️ Features in Detail
-
-### 1. Browser Automation
-
-**What it does:**
-- Launches Chromium in "headed" mode (visible)
-- Navigates to LMS homepage
-- Waits for you to login manually
-- Stays open during processing so you can see everything
-
-**Why headed mode?**
-- You maintain full control
-- You can see what's happening
-- You can intervene if needed
-- No hidden interactions
-
-### 2. Question Scraping
-
-**Supported:**
-- ✅ Multiple-choice with radio buttons (single answer)
-- ✅ Questions with images
-- ✅ Multi-page quizzes (automatic pagination)
-- ✅ Text-only questions
-
-**Not Supported:**
-- ❌ Checkboxes (multi-select)
-- ❌ Fill-in-the-blank
-- ❌ Essay questions
-- ❌ Drag-and-drop
-- ❌ Matching questions
-
-### 3. GPT-4o Vision API
-
-**How it works:**
-1. For text-only questions: Sends question text + options
-2. For image questions: Takes screenshot of entire question container
-3. Sends screenshot as base64 to GPT-4o
-4. Receives letter (A/B/C/D) + explanation
-
-**Image handling:**
-- Only high-resolution images work well
-- Screenshots include context (question + options)
-- Typical cost: $0.01-0.02 per image
-
-### 4. Answer Highlighting
-
-**Visual System:**
-| Color | Meaning | Icon |
-|-------|---------|------|
-| 🟢 Green | Confident answer | AI: B |
-| 🟡 Yellow | Uncertain answer | AI: ? |
-| ⚪ None | Skipped question | — |
-
-**How to use:**
-1. Green border appears around suggested answer
-2. Small badge shows "AI: B" near the option
-3. Click the green option to select it
-4. Proceed with submission
-
-### 5. Cost Management
-
-**Typical Costs:**
-- Text question: ~$0.005-0.01
-- Image question: ~$0.01-0.02
-- Full 10-question quiz: ~$0.10-0.20
-- Full 100-question quiz: ~$1-2
-
-**Cost Controls:**
-- 100-question limit (built-in)
-- 30-second timeout (prevents hanging)
-- No retries (fail fast)
-
-**Monitor costs:**
-1. Log into https://platform.openai.com
-2. Go to "Billing" → "Usage"
-3. Check daily costs
-4. Set usage limits if needed
-
----
-
-## 🏛️ Architecture
-
-### Project Structure
+## Project Structure
 
 ```
-bk-quiz/
-├── src/
-│   ├── index.ts          # Main entry point & orchestration
-│   ├── browser.ts        # Browser launch & management
-│   ├── navigation.ts     # URL validation & pagination
-│   ├── scraper.ts        # Question extraction from DOM
-│   ├── gpt.ts            # OpenAI API integration
-│   ├── overlay.ts        # Visual highlighting on page
-│   └── utils.ts          # Shared utilities (new)
-│
-├── .env.example          # Environment variable template
-├── .env                  # (GITIGNORED) Your API keys
-├── package.json          # Dependencies
-├── tsconfig.json         # TypeScript config
-├── .gitignore            # Git exclusions
-└── README.md             # This file
-```
-
-### Data Flow
-
-```
-1. Browser Launch
-   └─→ Navigate to LMS
-       └─→ Prompt user to login
-           └─→ Wait for Enter
-
-2. Quiz URL Input
-   └─→ Validate URL format
-       └─→ Navigate to quiz
-           └─→ Wait for page load
-
-3. Question Processing Loop
-   ├─→ Scrape questions from DOM
-   │   ├─→ Extract text
-   │   ├─→ Extract options
-   │   ├─→ Detect images
-   │   └─→ Build CSS selectors
-   │
-   ├─→ Send to GPT-4o
-   │   ├─→ Build prompt with options
-   │   ├─→ Attach screenshot if image exists
-   │   └─→ Parse response for letter (A/B/C/D)
-   │
-   ├─→ Print to console
-   │   └─→ Formatted question + answer + explanation
-   │
-   ├─→ Apply visual highlights
-   │   ├─→ Inject CSS styles
-   │   ├─→ Add green border to correct option
-   │   └─→ Add badge showing answer letter
-   │
-   └─→ Check for next page
-       ├─→ If Next button exists → click it
-       ├─→ If not → end of quiz
-       └─→ If reached 100 questions → stop
-
-4. Final Summary
-   └─→ Show statistics
-       └─→ Wait for user to close
-```
-
-### Module Responsibilities
-
-| Module | Purpose | Key Functions |
-|--------|---------|---------------|
-| **index.ts** | Orchestration | main(), exitWithError() |
-| **browser.ts** | Browser lifecycle | launchBrowser() |
-| **navigation.ts** | Quiz navigation | isQuizAttemptPage(), findNextButton(), PageTracker |
-| **scraper.ts** | DOM extraction | scrapeQuestions() |
-| **gpt.ts** | AI integration | validateApiKey(), analyzeQuestion() |
-| **overlay.ts** | Visual highlighting | applyHighlights() |
-| **utils.ts** | Shared helpers | waitForEnter(), printSuccess(), etc. |
-
----
-
-## 🐛 Troubleshooting
-
-### Windows-Specific Browser Issues
-
-Since Playwright browser automation on Windows can be finicky, here's a comprehensive guide to get it working.
-
-#### Step-by-Step Windows Troubleshooting
-
-**1. Install/Update Microsoft Edge (Recommended)**
-
-Edge is the most reliable browser on Windows for this tool. It's usually pre-installed, but update it to latest:
-
-```
-1. Go to: https://www.microsoft.com/en-us/edge
-2. Click "Download for Windows"
-3. Run the installer
-4. Restart your computer
-5. Try running bun run start again
-```
-
-Edge is preferred because:
-- ✅ Built for Windows
-- ✅ Integrated with system
-- ✅ Most reliable with Playwright
-- ✅ Better performance than Chromium port
-
-**2. Reinstall Playwright Browsers**
-
-```bash
-# Remove existing browser installations
-rm -r %USERPROFILE%\.cache\ms-playwright
-# or manually: Navigate to C:\Users\[YourUsername]\AppData\Local\ms-playwright and delete
-
-# Reinstall fresh
-bunx playwright install chromium firefox
-```
-
-**3. Kill Existing Browser Processes**
-
-If multiple browser instances are running, they can block new launches:
-
-```bash
-# PowerShell (Admin mode required):
-Get-Process | Where-Object {$_.ProcessName -like "*chrome*" -or $_.ProcessName -like "*msedge*" -or $_.ProcessName -like "*firefox*"} | Stop-Process -Force
-
-# Or manually via Task Manager:
-# 1. Press Ctrl+Shift+Esc
-# 2. Find: chrome.exe, msedge.exe, firefox.exe
-# 3. Right-click → End task
-# 4. Try again
-```
-
-**4. Run as Administrator**
-
-Some Windows systems need elevated permissions:
-
-```bash
-# Open PowerShell as Administrator:
-# Right-click PowerShell → Run as Administrator
-
-# Then:
-cd C:\Users\YourUsername\Desktop\troll\bk-quiz
-bun run start
-```
-
-**5. Disable Antivirus/Firewall Temporarily**
-
-Antivirus software can block browser launches. Test without it:
-
-```
-Windows Defender:
-  1. Settings → Privacy & Security
-  2. Virus & threat protection
-  3. Manage settings
-  4. Toggle "Real-time protection" OFF
-  5. Try bun run start
-  6. Toggle protection back ON when done
-
-Other antivirus:
-  - Look for "disable" or "pause protection" option
-  - Disable for 10 minutes
-  - Re-enable after testing
-```
-
-**6. Clear Playwright Cache**
-
-```bash
-# On Windows PowerShell:
-$env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-Remove-Item -Path "$env:USERPROFILE\.cache\ms-playwright" -Recurse -Force
-
-# Then reinstall:
-bunx playwright install chromium
-```
-
-**7. Check for System Updates**
-
-Outdated Windows can cause issues:
-
-```
-Settings → System → About
-Click "Check for updates"
-Install all available updates
-Restart computer
-```
-
-**8. Increase Browser Launch Timeout**
-
-If browser launches slowly on your system:
-
-```bash
-# PowerShell - set environment variable:
-$env:PLAYWRIGHT_LAUNCH_TIMEOUT="60000"
-bun run start
-
-# Or permanently (for current session):
-$env:DEBUG="pw:api"
-bun run start
-```
-
-**9. Try Different Browser**
-
-If Edge doesn't work, the tool will try Chromium and Firefox automatically. But you can force a specific browser:
-
-```bash
-# Force Firefox (more stable on some systems):
-bunx playwright install firefox
-bun run start
-
-# The tool will auto-detect and use Firefox if Chromium fails
-```
-
-**10. Clean System Resources**
-
-Free up memory and disk space:
-
-```bash
-# Check disk space:
-Get-Volume  # PowerShell
-
-# Free up space if < 500MB available:
-# - Delete Downloads folder
-# - Empty Recycle Bin (Shift+Del)
-# - Run Disk Cleanup: cleanmgr.exe
-
-# Restart computer after cleanup:
-shutdown /r /t 0
-```
-
-#### Windows Browser Priority Chain
-
-The tool now tries browsers in this order on Windows:
-
-```
-Windows 10/11:
-  1. Edge (msedge) - PREFERRED ✅ Most reliable
-  2. Chromium (Playwright's Chromium) - Fallback 
-  3. Firefox - Final fallback
-
-macOS/Linux:
-  1. Chromium - Preferred
-  2. Firefox - Fallback
-```
-
-#### Testing Individual Browser Launches
-
-To test if a specific browser can launch:
-
-```bash
-# Create test-edge.js in project root:
-const { chromium } = require('playwright');
-
-(async () => {
-  try {
-    console.log('Testing Edge launch...');
-    const browser = await chromium.launch({ channel: 'msedge', headless: false });
-    console.log('✅ Edge launched successfully!');
-    await browser.close();
-  } catch (e) {
-    console.log('❌ Edge launch failed:', e.message);
-  }
-})();
-
-# Run it:
-bun test-edge.js
+src/
+  index.ts         # Main entry — routes to solve/review/auto modes
+  setup.ts         # Interactive setup wizard
+  browser.ts       # Browser launch (Edge → Chrome → Firefox fallback)
+  scraper.ts       # Extract questions from Moodle DOM
+  gpt-provider.ts  # AI provider switcher (OpenAI/Groq/Ollama)
+  overlay.ts       # Highlight answers in the browser page
+  navigation.ts    # Quiz pagination, URL prompts
+  mode-review.ts   # Extract answers from completed quizzes
+  mode-auto.ts     # Auto-select using answer bank
 ```
 
 ---
 
-### Common Issues
+## Requirements
 
-#### 1. "❌ Invalid OPENAI_API_KEY"
-
-**Cause:** API key not set or invalid
-
-**Solution:**
-```bash
-# 1. Check .env file exists
-ls -la .env
-
-# 2. Verify API key format
-cat .env
-
-# 3. Get new key from https://platform.openai.com/api-keys
-# 4. Replace in .env file
-# 5. Save and try again
-```
-
-#### 2. "Cannot find module 'playwright'"
-
-**Cause:** Dependencies not installed
-
-**Solution:**
-```bash
-# Reinstall dependencies
-bun install
-
-# Verify Chromium is installed
-bunx playwright install chromium
-```
-
-#### 3. Browser Window Doesn't Open
-
-**Cause:** Chromium not installed or permissions issue
-
-**Solution:**
-```bash
-# Reinstall Chromium
-bunx playwright install chromium
-
-# On Linux, may need system dependencies
-# Ubuntu/Debian:
-sudo apt-get install -y libxss1 libappindicator1 libindicator7
-
-# Fedora:
-sudo dnf install -y chromium
-```
-
-#### 4. "No MCQ questions found"
-
-**Cause:** 
-- URL is not a quiz attempt page
-- Quiz hasn't started yet
-- Wrong question type
-
-**Solution:**
-- Verify URL contains `/mod/quiz/attempt.php?attempt=`
-- Click "Attempt quiz now" if not started
-- Check quiz contains radio button questions
-- Some Moodle instances use different HTML - contact support if needed
-
-#### 5. Quiz Page Doesn't Load
-
-**Cause:** Network timeout or LMS issue
-
-**Solution:**
-- Verify internet connection
-- Try accessing LMS manually first
-- Wait a moment and retry
-- Check if LMS is under maintenance
-
-#### 6. GPT Timeout / API Errors
-
-**Cause:** Network issues or API overload
-
-**Solution:**
-```bash
-# 1. Check internet connection
-# 2. Verify API key is valid
-# 3. Check OpenAI status: https://status.openai.com/
-# 4. Try again in a few minutes
-# 5. Run with fewer questions (try smaller quiz)
-```
-
-### Debug Mode
-
-To see more detailed logging:
-
-**In src/index.ts, uncomment debug lines:**
-```typescript
-// Uncomment for debugging
-// console.log('DEBUG: URL =', currentUrl);
-// console.log('DEBUG: Questions scraped =', questions.length);
-```
-
-Or add temporary logs before running.
+- [Node.js](https://nodejs.org) 18.0+
+- Windows/macOS/Linux
+- ~500MB disk space (for browser binaries)
 
 ---
 
-## ❓ FAQ
+## License
 
-### Q: Is this cheating?
-
-**A:** The tool is designed as a **study aid**, not a cheating mechanism. It:
-- ✅ Does NOT auto-submit answers
-- ✅ Does NOT hide from the LMS
-- ✅ Requires YOU to select each answer manually
-- ✅ Shows you the reasoning (explanation)
-- ✅ Lets you verify answers before submitting
-
-**Your responsibility:** Use this tool in compliance with your institution's academic integrity policies.
-
-### Q: Why do I need to login manually?
-
-**A:** For security and control:
-- ✅ Your login credentials are never stored
-- ✅ You can use 2FA if required
-- ✅ You maintain full session control
-- ✅ No risk of credential exposure
-
-### Q: Why only single-choice questions?
-
-**A:** Multi-select (checkboxes) are intentionally not supported because:
-- Require human judgment (multiple correct answers)
-- Higher likelihood of mistakes
-- Different scoring logic
-
-### Q: How much does it cost?
-
-**Cost Breakdown:**
-- Simple text question: ~$0.005
-- Image question: ~$0.015-0.02
-- Full 10-question quiz: ~$0.10
-- Full 100-question quiz: ~$1-2
-
-**Monitor costs:**
-- Track usage at https://platform.openai.com/account/billing/overview
-- Set spending limits in account settings
-- Start with free trial credits
-
-### Q: Does it work with other Moodle instances?
-
-**Short answer:** Probably yes!
-
-**Requirements:**
-- Standard Moodle question structure (.que.multichoice)
-- Radio buttons for single-choice
-- Similar DOM layout to HCMUT
-
-**If it doesn't work:**
-- Different Moodle theme might use different selectors
-- Contact us with the Moodle version + theme
-- May need selector adjustment
-
-### Q: Can I use my Free OpenAI credits?
-
-**Yes!**
-1. Go to https://platform.openai.com/account/billing/overview
-2. You'll see free credits if available
-3. They auto-expire after 3 months
-4. Use them while you have them!
-
-### Q: What if the AI gets the answer wrong?
-
-**A:** You still have control:
-1. ❌ Don't click the highlighted answer
-2. ✅ Click the correct answer instead
-3. The tool only **suggests**, you **decide**
-
-### Q: Can I run multiple quizzes at once?
-
-**A:** Not simultaneously, but:
-- Run it once for Quiz 1
-- Run it again for Quiz 2
-- Each run is independent
-- No state is stored between runs
-
-### Q: Why does it need GPU/high-spec hardware?
-
-**A:** It doesn't! The tool:
-- ✅ Runs on any modern laptop
-- ✅ Minimal CPU requirements
-- ✅ Minimal RAM (< 500MB)
-- ✅ Just needs internet connection
-
-### Q: What if I hit the OpenAI rate limit?
-
-**A:** The tool now has **intelligent rate limiting** built-in:
-
-1. **Automatic Rate Limiting:**
-   - Waits 1 second between requests (default)
-   - Prevents most rate limit issues
-   - Works for most OpenAI API plans
-
-2. **Automatic Retry on Rate Limit:**
-   - Retries up to 3 times on 429 errors
-   - Uses exponential backoff (1s → 2s → 4s → ...)
-   - Caps at 60-second max wait
-
-3. **Customize Delay (if needed):**
-   ```bash
-   # Increase delay to 2 seconds between requests
-   export REQUEST_DELAY_MS=2000
-   bun run src/index.ts
-   
-   # Or 3 seconds for very strict rate limits
-   export REQUEST_DELAY_MS=3000
-   bun run src/index.ts
-   ```
-
-4. **If Still Rate Limited:**
-   - You may have a strict API plan (e.g., free tier)
-   - Options:
-     - Increase REQUEST_DELAY_MS to 3000-5000
-     - Upgrade your OpenAI plan
-     - Split quiz into smaller batches (50 questions at a time)
-     - Wait 1-2 minutes between runs
-
-5. **Example with Very Conservative Settings:**
-   ```bash
-   # For free tier or strict limits:
-   export REQUEST_DELAY_MS=5000
-   bun run src/index.ts
-   
-   # This adds 5 seconds between each question
-   # For 100 questions = ~500 seconds = 8+ minutes total
-   # But guarantees no rate limits
-
-### Q: How do I use Skip Mode to handle quota exhaustion?
-
-**A:** Skip Mode allows the tool to skip failed questions and continue processing. Use it when:
-- Your OpenAI quota has been exhausted
-- Your account has billing issues
-- You want to gather as many answers as possible
-
-**Enable Skip Mode:**
-```bash
-# Run with skip mode enabled
-export SKIP_ON_RATE_LIMIT=true
-bun run start
-```
-
-**What happens:**
-- Tool processes quiz questions normally
-- If a question fails due to rate limit or quota → Skipped (marked UNKNOWN)
-- Tool continues to next question
-- At end: Shows which questions were skipped
-
-**Example:**
-```bash
-# Try with aggressive delays first
-export REQUEST_DELAY_MS=15000
-bun run start
-
-# If still failing, add skip mode
-export REQUEST_DELAY_MS=15000 && export SKIP_ON_RATE_LIMIT=true
-bun run start
-```
-
-**Output example:**
-```
-⚠️ Q1: Rate limited (attempt 1/6). Waiting 3.0s before retry...
-⚠️ Q1: Rate limited (attempt 2/6). Waiting 9.0s before retry...
-⚠️ Q1: Skipped (quota exhausted)
-
-✅ Q2: B (high confidence)
-✅ Q3: A (high confidence)
-
-Quiz processing complete!
-   Questions answered: 8
-   Questions skipped: 1
-   Questions skipped (rate limited): Q1
-```
-
-See [SKIP_MODE_GUIDE.md](./SKIP_MODE_GUIDE.md) for comprehensive guide.
-
+MIT
