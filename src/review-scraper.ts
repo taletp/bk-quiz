@@ -13,8 +13,13 @@ import { printWarning, printSuccess } from './utils.js';
  */
 export async function scrapeReviewPage(page: Page): Promise<ReviewData> {
   return await page.evaluate(() => {
+    // Polyfill for transpiled code
+    if (typeof globalThis !== 'undefined' && !('__name' in globalThis)) {
+      (globalThis as any).__name = (fn: Function) => fn;
+    }
+    
     // Helper function to normalize text (matches normalize.ts)
-    function normalizeText(text: string): string {
+    const normalizeText = (text: string): string => {
       return text
         .trim()
         .replace(/\s+/g, ' ')
@@ -22,16 +27,16 @@ export async function scrapeReviewPage(page: Page): Promise<ReviewData> {
         .replace(/^[a-z]\.\s*/g, '')
         .replace(/<[^>]+>/g, '')
         .trim();
-    }
+    };
 
     // Helper function to generate hash (matches normalize.ts)
-    function hashQuestion(normalizedText: string): string {
+    const hashQuestion = (normalizedText: string): string => {
       let hash = 5381;
       for (let i = 0; i < normalizedText.length; i++) {
         hash = ((hash << 5) + hash) ^ normalizedText.charCodeAt(i);
       }
       return ('0000000' + (hash >>> 0).toString(16)).slice(-8);
-    }
+    };
 
     const answers: ReviewedAnswer[] = [];
     

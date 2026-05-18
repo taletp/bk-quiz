@@ -3,7 +3,7 @@
  */
 
 import type { ReviewData } from './types.js';
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from 'fs';
+import { writeFileSync, readFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'fs';
 import path from 'path';
 import { printSuccess, printError } from './utils.js';
 
@@ -118,17 +118,16 @@ export function listReviewFiles(outputDir: string = './quiz-answers'): string[] 
    if (!existsSync(outputDir)) {
      return [];
    }
-   
+
    try {
-     const fs = require('fs');
-     const files = fs.readdirSync(outputDir) as string[];
+     const files = readdirSync(outputDir);
      const reviewFiles = files
        .filter((file: string) => file.startsWith('review-') && file.endsWith('.json'))
        .map((file: string) => path.join(outputDir, file))
-       .filter((file: string) => fs.statSync(file).isFile())
+       .filter((file: string) => statSync(file).isFile())
        .sort((a: string, b: string) => {
-         const statA = fs.statSync(a);
-         const statB = fs.statSync(b);
+         const statA = statSync(a);
+         const statB = statSync(b);
          return statB.mtimeMs - statA.mtimeMs; // newest first
        });
      

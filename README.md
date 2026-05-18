@@ -47,7 +47,7 @@ Extract correct answers from a completed quiz to build an answer bank:
 ```bash
 npm run review
 # or pass URL directly:
-npm run start --review "https://lms.hcmut.edu.vn/mod/quiz/review.php?attempt=12345"
+npm run start -- --review "https://lms.hcmut.edu.vn/mod/quiz/review.php?attempt=12345"
 ```
 
 ### Auto Mode
@@ -57,7 +57,7 @@ Use a saved answer bank to automatically select answers:
 ```bash
 npm run auto
 # or pass answer file directly:
-npm run start --auto "./quiz-answers/review-12345-2026-01-15.json"
+npm run start -- --auto "./quiz-answers/review-12345-2026-01-15.json"
 ```
 
 ---

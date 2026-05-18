@@ -116,8 +116,13 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
   }
   // Extract raw question data from the DOM
   const rawQuestions = await page.evaluate(() => {
+    // Polyfill for transpiled code
+    if (typeof globalThis !== 'undefined' && !('__name' in globalThis)) {
+      (globalThis as any).__name = (fn: Function) => fn;
+    }
+    
     // Helper: Auto-detect the correct question container selector
-    function detectQuestionSelector(): { selector: string; count: number } {
+    const detectQuestionSelector = (): { selector: string; count: number } => {
       const selectors = [
         '.que.multichoice',           // Standard Moodle (classic theme)
         '.que[class*="multichoice"]', // With additional classes
@@ -136,14 +141,14 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
           }
         }
       }
-      
+
       // Last resort: Look for any element with question-like structure
       const lastResort = document.querySelectorAll('.que, .question, .qtype_multichoice, [id^="question-"]');
       return { selector: '.que, .question, .qtype_multichoice, [id^="question-"]', count: lastResort.length };
-    }
+    };
 
     // Helper: Extract question ID from container
-    function getQuestionId(container: Element): string {
+    const getQuestionId = (container: Element): string => {
       const id = container.id; // e.g., "question-12345-67890"
       if (id && id.startsWith('question-')) {
         return id; // Use full ID for uniqueness
@@ -151,13 +156,13 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
       // Fallback: generate from index
       const index = Array.from(document.querySelectorAll('.que, .question, [id^="question-"]')).indexOf(container);
       return `que-index-${index}`;
-    }
+    };
 
     // Helper: Check if question is multi-select (skip these)
-    function isMultiSelect(container: Element): boolean {
+    const isMultiSelect = (container: Element): boolean => {
       return container.classList.contains('multianswer') ||
              container.querySelector('input[type="checkbox"]') !== null;
-    }
+    };
 
     const { selector: detectedSelector, count: selectorCount } = detectQuestionSelector();
     const questionContainers = Array.from(

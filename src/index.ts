@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Browser } from 'playwright';
 import { launchBrowser } from './browser.js';
 import {

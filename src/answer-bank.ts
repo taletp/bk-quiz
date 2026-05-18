@@ -1,6 +1,6 @@
 import type { ReviewedAnswer, ReviewData } from './types.js';
 import { normalizeText, hashQuestion, similarityScore, questionsMatch } from './normalize.js';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import path from 'path';
 
 /**
@@ -202,8 +202,7 @@ export class AnswerBank {
     const dir = path.dirname(filepath);
     if (!existsSync(dir)) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        require('fs').mkdirSync(dir, { recursive: true });
+        mkdirSync(dir, { recursive: true });
       } catch (error) {
         const errMsg = error instanceof Error ? error.message : String(error);
         throw new Error(`Failed to create directory ${dir}: ${errMsg}`);

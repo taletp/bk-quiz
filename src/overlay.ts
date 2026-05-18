@@ -13,6 +13,11 @@ export interface HighlightData {
  */
 export async function applyHighlights(page: Page, highlights: HighlightData[]): Promise<void> {
   await page.evaluate((highlightsData) => {
+    // Polyfill for transpiled code
+    if (typeof globalThis !== 'undefined' && !('__name' in globalThis)) {
+      (globalThis as any).__name = (fn: Function) => fn;
+    }
+    
     // Step 1: Inject CSS styles (only once per page)
     if (!document.getElementById('quiz-solver-styles')) {
       const style = document.createElement('style');
