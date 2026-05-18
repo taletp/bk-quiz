@@ -309,7 +309,7 @@ export async function scrapeQuestions(page: Page): Promise<ScrapedQuestion[]> {
   if (detectedSelector && selectorCount === 0) {
     printWarning(`No questions found with selector: ${detectedSelector}`);
     printWarning(`This might mean the Moodle HTML structure is different than expected.`);
-    printWarning(`Try running: bun diagnose-selectors.js to analyze the page structure.`);
+    printWarning(`Try running: npx tsx diagnose-selectors.ts to analyze the page structure.`);
   }
 
   for (const raw of rawQuestions) {

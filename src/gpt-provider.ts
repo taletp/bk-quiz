@@ -1,9 +1,9 @@
 /**
  * LLM Provider Factory - Switch between OpenAI, Groq, Ollama, etc.
- * 
+ *
  * Usage:
  *   export LLM_PROVIDER=ollama  # or openai, groq
- *   bun run start
+ *   npm run start
  */
 
 import type { ScrapedQuestion } from './scraper.js';

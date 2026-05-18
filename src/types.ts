@@ -16,6 +16,7 @@ export interface ReviewedAnswer {
 /** Container for a full review extraction */
 export interface ReviewData {
   sourceUrl: string;          // The review.php URL
+  attemptId?: string;         // Extracted from sourceUrl for convenience
   quizName?: string;          // Quiz title if available
   extractedAt: string;        // ISO 8601 timestamp
   totalQuestions: number;
