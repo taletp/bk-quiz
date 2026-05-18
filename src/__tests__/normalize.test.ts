@@ -2,7 +2,7 @@
  * Unit tests for normalize.ts functions
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { normalizeText, hashQuestion, similarityScore, questionsMatch } from '../normalize.js';
 
 describe('normalizeText()', () => {

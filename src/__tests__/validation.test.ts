@@ -2,7 +2,7 @@
  * Unit tests for validation.ts functions
  */
 
-import { describe, it, expect } from 'bun:test';
+import { describe, it, expect } from 'vitest';
 import { isValidReviewUrl, isValidQuizPageUrl, isValidQuizUrl } from '../validation.js';
 
 describe('isValidReviewUrl()', () => {

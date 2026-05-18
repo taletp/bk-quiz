@@ -2,7 +2,7 @@
  * Unit tests for review-scraper.ts functions
  */
 
-import { describe, it, expect, beforeEach, vi } from 'bun:test';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Page } from 'playwright';
 import { scrapeReviewPage, scrapeFullReview } from '../review-scraper.js';
 import type { ReviewData } from '../types.js';
@@ -82,13 +82,8 @@ describe('scrapeFullReview()', () => {
     // Mock findNextButton to return an element on first call, null on second
     const mockNextButton = {} as unknown as HTMLElement;
     const findNextButtonSpy = vi.spyOn(require('../navigation.js'), 'findNextButton')
-      .mockImplementation(async (callCount = 0) => {
-        // Keep track of calls via closure
-        if (!findNextButtonSpy.mock.calls) {
-          findNextButtonSpy.mock.calls = [];
-        }
-        findNextButtonSpy.mock.calls.push(callCount);
-        return findNextButtonSpy.mock.calls.length === 1 ? mockNextButton : null;
+      .mockImplementation(async (_page: any) => {
+        return findNextButtonSpy.mock.calls.length === 0 ? mockNextButton : null;
       });
     
     // Mock navigateToNextPage to return true on first call

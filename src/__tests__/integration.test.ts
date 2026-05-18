@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { AnswerBank } from '../answer-bank';
 import { saveReviewData, loadReviewData, listReviewFiles } from '../review-export';
 import { normalizeText, hashQuestion } from '../normalize';
@@ -33,7 +33,8 @@ describe('Integration: Review Mode → Auto Mode', () => {
     const mockReviewData: ReviewData = {
       sourceUrl: 'https://example.com/review.php?attempt=12345',
       attemptId: '12345',
-      timestamp: new Date().toISOString(),
+      extractedAt: new Date().toISOString(),
+      totalQuestions: 2,
       answers: [
         {
           questionText: 'What is the capital of France?',
@@ -65,7 +66,8 @@ describe('Integration: Review Mode → Auto Mode', () => {
     const mockReviewData: ReviewData = {
       sourceUrl: 'https://example.com/review.php?attempt=99999',
       attemptId: '99999',
-      timestamp: new Date().toISOString(),
+      extractedAt: new Date().toISOString(),
+      totalQuestions: 1,
       answers: [
         {
           questionText: 'What is 2 + 2?',
@@ -106,7 +108,8 @@ describe('Integration: Review Mode → Auto Mode', () => {
     const mockReviewData: ReviewData = {
       sourceUrl: 'https://example.com/review.php?attempt=bank-test',
       attemptId: 'bank-test',
-      timestamp: new Date().toISOString(),
+      extractedAt: new Date().toISOString(),
+      totalQuestions: 1,
       answers: [
         {
           questionText: 'What color is the sky?',
@@ -132,7 +135,8 @@ describe('Integration: Review Mode → Auto Mode', () => {
     const mockData: ReviewData = {
       sourceUrl: 'https://example.com/review.php?attempt=fuzzy-test',
       attemptId: 'fuzzy-test',
-      timestamp: new Date().toISOString(),
+      extractedAt: new Date().toISOString(),
+      totalQuestions: 1,
       answers: [
         {
           questionText: 'What is the capital of France?',
@@ -160,7 +164,8 @@ describe('Integration: Review Mode → Auto Mode', () => {
     const mockData: ReviewData = {
       sourceUrl: 'https://example.com/review.php?attempt=shuffle-test',
       attemptId: 'shuffle-test',
-      timestamp: new Date().toISOString(),
+      extractedAt: new Date().toISOString(),
+      totalQuestions: 1,
       answers: [
         {
           questionText: 'Select the largest planet',
@@ -197,7 +202,8 @@ describe('Integration: Review Mode → Auto Mode', () => {
     const invalidData = {
       sourceUrl: 'https://example.com/review.php?attempt=invalid',
       attemptId: 'invalid',
-      timestamp: new Date().toISOString(),
+      extractedAt: new Date().toISOString(),
+      totalQuestions: 1,
       answers: [
         {
           // Missing required field: correctAnswer
@@ -233,7 +239,8 @@ describe('Integration: Review Mode → Auto Mode', () => {
     const originalData: ReviewData = {
       sourceUrl: 'https://example.com/review.php?attempt=roundtrip',
       attemptId: 'roundtrip',
-      timestamp: new Date().toISOString(),
+      extractedAt: new Date().toISOString(),
+      totalQuestions: 2,
       answers: [
         {
           questionText: 'What is HTML?',

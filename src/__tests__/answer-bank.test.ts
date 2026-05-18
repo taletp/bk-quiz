@@ -2,7 +2,7 @@
  * Unit tests for answer-bank.ts functions
  */
 
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { AnswerBank } from '../answer-bank.js';
 import type { ReviewedAnswer, ReviewData } from '../types.js';
 
