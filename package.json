@@ -1,20 +1,30 @@
 {
   "name": "bk-quiz",
-  "module": "index.ts",
+  "version": "1.0.0",
+  "description": "One-command quiz solver for Moodle LMS",
   "type": "module",
   "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
+  "engines": {
+    "node": ">=18.0.0"
   },
   "scripts": {
-    "start": "bun run src/index.ts"
+    "start": "tsx src/index.ts",
+    "setup": "tsx src/setup.ts",
+    "review": "tsx src/index.ts --review",
+    "auto": "tsx src/index.ts --auto",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "install:browsers": "playwright install chromium firefox"
   },
   "dependencies": {
     "dotenv": "^17.2.3",
     "openai": "^6.16.0",
     "playwright": "^1.58.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0",
+    "vitest": "^4.1.6"
   }
 }
